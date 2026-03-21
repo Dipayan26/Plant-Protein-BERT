@@ -1,0 +1,27 @@
+# @package _global_.training
+_target_: plant_bert.training.finetune.FineTuner
+
+task: go_term_prediction  # or: subcellular_localization, thermostability
+num_labels: 5
+problem_type: multi_label_classification
+
+pretrained_checkpoint: null  # required: path to pretrain last.ckpt
+freeze_encoder_layers: 0     # 0 = finetune all; N = freeze first N layers
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 2.0e-5
+  weight_decay: 0.01
+
+trainer:
+  max_epochs: 10
+  val_check_interval: 1.0
+  gradient_clip_val: 1.0
+  precision: 16-mixed
+  devices: 1
+
+checkpoint:
+  monitor: val/auroc
+  mode: max
+  save_top_k: 1
+  dirpath: ${hydra:runtime.cwd}/checkpoints/finetune

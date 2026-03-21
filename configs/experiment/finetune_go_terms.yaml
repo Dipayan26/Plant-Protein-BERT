@@ -1,0 +1,12 @@
+# Fine-tune on GO term prediction
+# Usage: python scripts/finetune.py +experiment=finetune_go_terms training.pretrained_checkpoint=<path>
+# @package _global_
+
+defaults:
+  - override /data: trembl_full
+  - override /training: finetune
+
+training:
+  task: go_term_prediction
+  num_labels: 589  # number of GO terms in evaluation set
+  problem_type: multi_label_classification
