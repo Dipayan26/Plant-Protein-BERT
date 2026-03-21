@@ -10,9 +10,12 @@ UniProt DAT format reference:
 from __future__ import annotations
 
 import gzip
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Generator
+
+_OX_RE = re.compile(r"NCBI_TaxID=(\d+)")
 
 
 @dataclass
@@ -22,6 +25,7 @@ class UniProtRecord:
     description: str = ""
     organism: str = ""
     taxonomy: list[str] = field(default_factory=list)
+    tax_id: int = 0       # NCBI TaxID from OX line — used for Viridiplantae filtering
     sequence: str = ""
     go_terms: list[str] = field(default_factory=list)
     source: str = ""  # "sprot" or "trembl"
@@ -70,6 +74,12 @@ def parse_dat_gz(filepath: str | Path, source: str = "") -> Generator[UniProtRec
 
             elif line_type == "OS":
                 record.organism += line[5:].strip().rstrip(".")
+
+            elif line_type == "OX":
+                # OX   NCBI_TaxID=3702 {ECO:0000313|...}
+                m = _OX_RE.search(line)
+                if m:
+                    record.tax_id = int(m.group(1))
 
             elif line_type == "OC":
                 taxa = [t.strip().rstrip(";.") for t in line[5:].split(";") if t.strip()]

@@ -7,6 +7,10 @@ raw_files:
 
 processed_dir: ${hydra:runtime.cwd}/outputs/processed/trembl_full
 
+# Viridiplantae taxonomy filter — rejects oomycetes, dinoflagellates, etc.
+# (~15.7% of UniProt's "plant" subset are non-Viridiplantae by NCBI TaxID)
+taxonomy_nodes_dmp: outputs/taxonomy/nodes.dmp
+
 min_length: 50
 max_length: 1024
 max_ambiguous_frac: 0.1
