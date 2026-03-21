@@ -84,7 +84,7 @@ Strict layering: `utils` ← `tokenizer` ← `data` ← `models` ← `training`/
 
 **`data/uniprot_parser.py`** — The most critical module. Streaming generator over UniProt DAT.gz files that never loads the full file into memory. Parses ID/AC/DE/OS/OC/DR(GO)/SQ fields into `UniProtRecord` dataclasses.
 
-**`data/preprocessing.py`** — One-time pipeline: `parse_dat_gz` → filtered JSONL → HDF5 index. The HDF5 index (`sequences.h5`) enables O(1) random access to any sequence in the 18 GB TrEMBL file during training. Results cached in `outputs/processed/`; set `data.force_reprocess=true` to re-run.
+**`data/preprocessing.py`** — One-time pipeline: `parse_dat_gz` → Viridiplantae taxonomy filter → length/dedup filter → HDF5 index. The taxonomy filter uses `outputs/taxonomy/nodes.dmp` (NCBI taxdump) to walk the TaxID tree and reject non-Viridiplantae sequences — UniProt's "plant" subset is ~15.7% contaminated with oomycetes and dinoflagellates. The HDF5 index (`sequences.h5`) enables O(1) random access during training. Results cached in `outputs/processed/`; set `data.force_reprocess=true` to re-run.
 
 **`data/dataset.py`** — `StreamingProteinDataset` reads from the HDF5 index with lazy file open per worker, enabling O(1) random access to the full 18 GB TrEMBL file without loading it into RAM.
 
