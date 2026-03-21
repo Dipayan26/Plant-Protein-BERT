@@ -1,0 +1,8 @@
+# @package _global_.tokenizer
+_target_: plant_bert.tokenizer.bpe_tokenizer.BPETokenizer
+
+vocab_size: 8000
+min_frequency: 10
+special_tokens: ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"]
+training_corpus: ${data.processed_dir}/sequences_train.txt
+save_path: artifacts/tokenizers/bpe_8k_tokenizer.json

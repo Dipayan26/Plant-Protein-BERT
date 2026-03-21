@@ -1,0 +1,21 @@
+# @package _global_.data
+_target_: plant_bert.data.datamodule.UniProtDataModule
+
+raw_files:
+  - path: DATA/PLANT_uniprot_new/uniprot_trembl_18_GB/uniprot_trembl_plants.dat.gz
+    source: trembl
+
+processed_dir: ${hydra:runtime.cwd}/outputs/processed/trembl_full
+
+min_length: 50
+max_length: 1024
+max_ambiguous_frac: 0.1
+streaming: true
+buffer_size: 100000  # sequences held in memory during shuffle
+
+train_split: 0.90
+val_split: 0.05
+test_split: 0.05
+batch_size: 64
+num_workers: 8
+shuffle_seed: ${seed}

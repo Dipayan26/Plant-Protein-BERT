@@ -1,0 +1,15 @@
+# @package _global_.tokenizer
+_target_: plant_bert.tokenizer.amino_acid_tokenizer.AminoAcidTokenizer
+
+vocab:
+  standard: [A, C, D, E, F, G, H, I, K, L, M, N, P, Q, R, S, T, V, W, Y]
+  ambiguous: [B, Z, X, U, O]
+  special:
+    pad_token: "[PAD]"   # id: 0
+    unk_token: "[UNK]"   # id: 1
+    cls_token: "[CLS]"   # id: 2
+    sep_token: "[SEP]"   # id: 3
+    mask_token: "[MASK]" # id: 4
+
+vocab_size: 30
+save_path: artifacts/tokenizers/amino_acid_tokenizer.json

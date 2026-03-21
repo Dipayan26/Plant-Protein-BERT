@@ -1,0 +1,10 @@
+# @package _global_.evaluation
+_target_: plant_bert.evaluation.evaluator.Evaluator
+
+metrics:
+  - perplexity
+  - mlm_accuracy
+
+splits_to_evaluate: [val, test]
+batch_size: 64
+output_dir: ${hydra:runtime.cwd}/evaluation_results

@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+*.gz
+
+# Training outputs (checkpoints, Hydra run dirs)
+outputs/
+multirun/
+
+# Artifacts that are too large to version (keep tokenizer/ subdir)
+artifacts/tokenizers/*.json
+artifacts/tokenizers/*.txt
