@@ -1,0 +1,14 @@
+# Fine-tune PlantBERT-150M on plant downstream tasks
+# Usage:
+#   python scripts/finetune.py +experiment=finetune_plant_bert_150m \
+#       training.pretrained_checkpoint=outputs/.../checkpoints/pretrain/last.ckpt
+# @package _global_
+
+defaults:
+  - override /data: trembl_full
+  - override /model: plant_bert_150m
+  - override /tokenizer: amino_acid
+  - override /training: finetune_plant_bert
+
+data:
+  batch_size: 16

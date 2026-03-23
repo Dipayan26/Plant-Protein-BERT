@@ -1,0 +1,14 @@
+# PlantBERT-8M pretraining on Viridiplantae TrEMBL data
+# Comparable to: esm2_t6_8M_UR50D  (~8M params, 6 layers)
+# Usage: python scripts/pretrain.py +experiment=pretrain_plant_8m
+# @package _global_
+
+defaults:
+  - override /data: trembl_full
+  - override /model: plant_bert_8m
+  - override /tokenizer: amino_acid
+  - override /training: pretrain_8m
+
+# Override batch size for 8M (larger batch fits in memory)
+data:
+  batch_size: 32

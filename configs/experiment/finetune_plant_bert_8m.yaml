@@ -1,0 +1,15 @@
+# Fine-tune PlantBERT-8M on plant downstream tasks
+# Usage:
+#   python scripts/finetune.py +experiment=finetune_plant_bert_8m \
+#       training.pretrained_checkpoint=outputs/.../checkpoints/pretrain/last.ckpt \
+#       training.task=go_term_prediction training.num_labels=500
+# @package _global_
+
+defaults:
+  - override /data: trembl_full
+  - override /model: plant_bert_8m
+  - override /tokenizer: amino_acid
+  - override /training: finetune_plant_bert
+
+data:
+  batch_size: 64

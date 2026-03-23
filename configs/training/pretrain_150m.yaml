@@ -1,0 +1,44 @@
+# @package _global_.training
+# Pretraining config for PlantBERT-150M
+# Optimizer settings mirror ESM-2 (Lin et al. 2022, Section A.2.4 + Table S3)
+#
+# Compute budget for single GPU:
+#   batch_size=8, accum=16 → eff_batch=128 seqs, ~65K tokens/step
+#   100K steps ≈ ~1.5 passes through plant data
+#   NOTE: At this scale consider multi-GPU (strategy: ddp) if available.
+#   For multi-GPU: set devices=-1, accumulate_grad_batches=1 or 2
+_target_: plant_bert.training.pretrain.MLMPretrainer
+
+mlm_probability: 0.15
+mask_token_prob: 0.80
+random_token_prob: 0.10
+keep_original_prob: 0.10
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 4.0e-4                   # ESM-2 peak LR (Table S3)
+  betas: [0.9, 0.98]           # ESM-2 uses β2=0.98
+  weight_decay: 0.01
+  eps: 1.0e-8
+
+scheduler:
+  _target_: transformers.get_linear_schedule_with_warmup
+  num_warmup_steps: 2000
+  num_training_steps: 100000
+
+trainer:
+  max_steps: 100000
+  val_check_interval: 2000
+  log_every_n_steps: 50
+  gradient_clip_val: 0.0       # ESM-2 Table S3: clip_norm=0 for 150M
+  precision: 16-mixed
+  accumulate_grad_batches: 16  # emulate larger batch on single GPU
+  devices: 1
+  strategy: auto
+
+checkpoint:
+  monitor: val/mlm_loss
+  mode: min
+  save_top_k: 2
+  save_last: true
+  dirpath: ${hydra:runtime.cwd}/checkpoints/pretrain

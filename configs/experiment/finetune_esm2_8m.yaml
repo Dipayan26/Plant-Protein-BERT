@@ -1,0 +1,21 @@
+# Fine-tune ESM-2 8M (facebook/esm2_t6_8M_UR50D) on plant data
+# Comparison baseline: general-purpose model adapted to plant task
+# Usage:
+#   python scripts/finetune.py +experiment=finetune_esm2_8m \
+#       training.task=go_term_prediction training.num_labels=500
+# @package _global_
+
+defaults:
+  - override /data: trembl_full
+  - override /model: esm2_8m          # loads from HuggingFace, not from checkpoint
+  - override /tokenizer: esm2
+  - override /training: finetune_esm2
+
+tokenizer:
+  esm2_model_name: facebook/esm2_t6_8M_UR50D
+
+model:
+  esm2_model_name: facebook/esm2_t6_8M_UR50D
+
+data:
+  batch_size: 32

@@ -1,0 +1,16 @@
+# PlantBERT-150M pretraining on Viridiplantae TrEMBL data
+# Comparable to: esm2_t30_150M_UR50D  (~150M params, 30 layers)
+# Usage: python scripts/pretrain.py +experiment=pretrain_plant_150m
+# @package _global_
+#
+# NOTE: 150M on a single GPU is slow (~2-3 days for 100K steps).
+#       For multi-GPU: override training.trainer.devices=-1 training.trainer.strategy=ddp
+
+defaults:
+  - override /data: trembl_full
+  - override /model: plant_bert_150m
+  - override /tokenizer: amino_acid
+  - override /training: pretrain_150m
+
+data:
+  batch_size: 8
