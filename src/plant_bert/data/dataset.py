@@ -63,6 +63,8 @@ class StreamingProteinDataset(Dataset):
             # Lazy open per worker process
             self._hf = h5py.File(self.hdf5_path, "r")
         sequence = self._hf["sequences"][idx]
+        if isinstance(sequence, bytes):
+            sequence = sequence.decode("utf-8")
         return self.tokenizer(
             sequence,
             max_length=self.max_length,

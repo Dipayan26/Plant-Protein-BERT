@@ -48,3 +48,43 @@
   - scripts/filter_viridiplantae.py — standalone script: reads 18GB DAT.gz, 
   applies taxonomy filter, writes clean FASTA. Run --stats-only for stats
   without writing output.  
+
+
+
+
+ README sections:
+  1. Research hypothesis — the plant underrepresentation argument with real
+  numbers from your UniRef50 analysis, the contamination issue, and the
+  comparison matrix showing what the 3-way experiment proves
+  2. Setup — pip install and conda env recreation
+  3. Data — filtering statistics (25.5M → 19.9M), what each output file is
+  4. Pipeline — all 4 steps with exact commands, including the fast
+  FASTA→HDF5 route
+  5. Model architectures — parameter table matched to ESM-2 Table S3,
+  optimizer hyperparameters with source citations
+  6. Repository structure — every file explained in one sentence, organized
+  by layer
+  7. Downstream tasks — the 4 planned tasks including the negative control
+  rationale
+
+  Repo structure explanation (every file):
+
+  ┌──────────┬───────────────────────────────────────────────────────────┐
+  │  Layer   │                         Key files                         │
+  ├──────────┼───────────────────────────────────────────────────────────┤
+  │ Data     │ uniprot_parser.py → preprocessing.py → dataset.py →       │
+  │          │ datamodule.py                                             │
+  ├──────────┼───────────────────────────────────────────────────────────┤
+  │ Models   │ bert.py (PlantBERT) + esm2_finetune.py (baseline) +       │
+  │          │ heads.py                                                  │
+  ├──────────┼───────────────────────────────────────────────────────────┤
+  │ Training │ pretrain.py (MLM) + finetune.py (downstream)              │
+  ├──────────┼───────────────────────────────────────────────────────────┤
+  │ Scripts  │ filter_viridiplantae.py → fasta_to_hdf5.py → pretrain.py  │
+  │          │ → finetune.py → evaluate.py                               │
+  ├──────────┼───────────────────────────────────────────────────────────┤
+  │ Configs  │ Named experiment YAMLs compose model + training + data    │
+  │          │ configs at runtime                                        │
+  └──────────┴───────────────────────────────────────────────────────────┘
+
+✻ Baked for 4m 4s
