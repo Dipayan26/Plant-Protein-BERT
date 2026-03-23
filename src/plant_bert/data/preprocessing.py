@@ -159,7 +159,7 @@ def build_hdf5_index(jsonl_path: Path, hdf5_path: Path) -> None:
         for line in tqdm(f, desc="Building HDF5"):
             sequences.append(json.loads(line)["sequence"])
 
-    dt = h5py.special_dtype(vlen=str)
+    dt = h5py.string_dtype()  # returns str on read in h5py 3.x (not bytes)
     with h5py.File(hdf5_path, "w") as hf:
         ds = hf.create_dataset("sequences", shape=(len(sequences),), dtype=dt)
         ds[:] = np.array(sequences, dtype=object)

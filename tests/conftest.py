@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import io
 import gzip
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -40,6 +38,3 @@ def synthetic_dat_gz(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.fixture
-def synthetic_sequences() -> list[str]:
-    return ["ACDEFGHIKL", "MNPQRSVW", "LLLLLLLLLLL"]
