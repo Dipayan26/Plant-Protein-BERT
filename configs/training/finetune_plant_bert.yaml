@@ -1,0 +1,42 @@
+# @package _global_.training
+# Fine-tuning config for PlantBERT-8M / 35M / 150M on downstream tasks.
+# Use with experiment configs: finetune_plant_bert_8m/35m/150m
+#
+# Downstream tasks supported:
+#   go_term_prediction          → multi_label_classification, num_labels=<ontology size>
+#   subcellular_localization    → single_label_classification, num_labels=10
+#   enzyme_function             → multi_label_classification, num_labels=<EC classes>
+#   secondary_structure         → single_label_classification (per-residue), num_labels=3
+_target_: plant_bert.training.finetune.FineTuner
+
+task: go_term_prediction
+num_labels: 1000               # override per task (GO-MF ≈500, GO-BP ≈1500, GO-CC ≈300)
+problem_type: multi_label_classification
+
+pretrained_checkpoint: null    # required: set via CLI or experiment override
+freeze_encoder_layers: 0       # 0 = fine-tune all; set >0 for frozen-encoder probing
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  betas: [0.9, 0.98]
+  weight_decay: 0.01
+  eps: 1.0e-8
+
+scheduler:
+  _target_: transformers.get_linear_schedule_with_warmup
+  num_warmup_steps: 200
+  num_training_steps: 5000     # ~10 epochs × 500 steps/epoch for typical FT set
+
+trainer:
+  max_epochs: 20
+  val_check_interval: 1.0
+  gradient_clip_val: 1.0
+  precision: 16-mixed
+  devices: 1
+
+checkpoint:
+  monitor: val/auroc
+  mode: max
+  save_top_k: 1
+  dirpath: ${hydra:runtime.cwd}/checkpoints/finetune

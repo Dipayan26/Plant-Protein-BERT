@@ -1,0 +1,17 @@
+# @package _global_.model
+# Exact parameter match to esm2_t30_150M_UR50D (Table S3, Lin et al. 2022)
+# Layers=30, embed=640, heads=20, ffn=2560  →  ~150M parameters
+_target_: plant_bert.models.bert.PlantProteinBERT
+
+hidden_size: 640
+num_hidden_layers: 30
+num_attention_heads: 20        # head_dim = 640/20 = 32
+intermediate_size: 2560        # 4 × hidden_size
+hidden_dropout_prob: 0.0       # ESM-2 removes dropout (A.2.4)
+attention_probs_dropout_prob: 0.0
+max_position_embeddings: 1026
+type_vocab_size: 1
+vocab_size: ${tokenizer.vocab_size}
+initializer_range: 0.02
+layer_norm_eps: 1.0e-12
+pretrained_checkpoint: null

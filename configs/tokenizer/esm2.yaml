@@ -1,0 +1,8 @@
+# @package _global_.tokenizer
+# Wraps HuggingFace EsmTokenizer for ESM-2 fine-tuning experiments.
+# Uses the same 33-token alphabet as ESM-2 (20 standard + 5 ambiguous + 8 special).
+# Set esm2_model_name to match the model config (same HF checkpoint).
+_target_: plant_bert.tokenizer.esm2_tokenizer_wrapper.ESM2TokenizerWrapper
+
+esm2_model_name: facebook/esm2_t6_8M_UR50D  # override per experiment
+vocab_size: 33

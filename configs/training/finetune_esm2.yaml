@@ -1,0 +1,40 @@
+# @package _global_.training
+# Fine-tuning config for ESM-2 models on plant downstream tasks.
+# ESM-2 is loaded from HuggingFace (facebook/esm2_t*_*M_UR50D).
+# Uses ESM2FineTuner which wraps the HF EsmModel + SequenceClassificationHead.
+#
+# This is the comparison baseline: general-purpose ESM-2 adapted to plant data.
+# Compare against PlantBERT trained from scratch to test the hypothesis.
+_target_: plant_bert.training.finetune.FineTuner
+
+task: go_term_prediction
+num_labels: 1000
+problem_type: multi_label_classification
+
+pretrained_checkpoint: null    # not used — ESM-2 loads from HuggingFace directly
+freeze_encoder_layers: 0       # keep 0: ESM2FineTuner manages its own layer freezing
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  betas: [0.9, 0.98]
+  weight_decay: 0.01
+  eps: 1.0e-8
+
+scheduler:
+  _target_: transformers.get_linear_schedule_with_warmup
+  num_warmup_steps: 200
+  num_training_steps: 5000
+
+trainer:
+  max_epochs: 20
+  val_check_interval: 1.0
+  gradient_clip_val: 1.0
+  precision: 16-mixed
+  devices: 1
+
+checkpoint:
+  monitor: val/auroc
+  mode: max
+  save_top_k: 1
+  dirpath: ${hydra:runtime.cwd}/checkpoints/finetune

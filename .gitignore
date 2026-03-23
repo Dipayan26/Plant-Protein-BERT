@@ -215,3 +215,8 @@ multirun/
 # Artifacts that are too large to version (keep tokenizer/ subdir)
 artifacts/tokenizers/*.json
 artifacts/tokenizers/*.txt
+=1.3
+=1.83
+=2.2
+=2.3
+=3.10
