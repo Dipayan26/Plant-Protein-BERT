@@ -1,9 +1,9 @@
+# @package _global_
 # Fine-tune PlantBERT-35M on plant downstream tasks
 # Usage:
 #   python scripts/finetune.py +experiment=finetune_plant_bert_35m \
 #       training.pretrained_checkpoint=outputs/.../checkpoints/pretrain/last.ckpt \
 #       training.task=subcellular_localization training.num_labels=10
-# @package _global_
 
 defaults:
   - override /data: trembl_full

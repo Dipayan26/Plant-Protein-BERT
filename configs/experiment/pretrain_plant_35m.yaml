@@ -1,7 +1,7 @@
+# @package _global_
 # PlantBERT-35M pretraining on Viridiplantae TrEMBL data
 # Comparable to: esm2_t12_35M_UR50D  (~35M params, 12 layers)
 # Usage: python scripts/pretrain.py +experiment=pretrain_plant_35m
-# @package _global_
 
 defaults:
   - override /data: trembl_full

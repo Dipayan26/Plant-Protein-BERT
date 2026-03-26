@@ -1,11 +1,20 @@
-"""BPE tokenizer trained on plant protein sequences.
+"""BPE (Byte-Pair Encoding) tokenizer — an alternative to the fixed amino-acid tokenizer.
 
-Train via: python scripts/train_tokenizer.py tokenizer=bpe data=trembl_full
+BPE is a data-driven algorithm that learns common sub-sequences from the training
+data and merges them into single tokens.  Example: if "AL" appears very often in
+plant proteins, BPE may represent it as one token rather than two.
+
+    Advantage: richer vocabulary can capture common motifs (e.g. signal peptides).
+    Disadvantage: vocabulary must be trained first; harder to interpret.
+
+For this project we use AminoAcidTokenizer by default (tokenizer: amino_acid).
+Use this only if you want to experiment with sub-sequence representations.
+
+Train via:
+    python scripts/train_tokenizer.py tokenizer=bpe data=trembl_full
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
@@ -15,7 +24,12 @@ from transformers import PreTrainedTokenizerFast
 
 
 class BPETokenizer:
-    """Byte-pair encoding tokenizer for protein sequences."""
+    """Byte-Pair Encoding tokenizer for protein sequences.
+
+    If training_corpus is provided, BPE merges are learned from the corpus
+    and saved to save_path.  If not provided, the tokenizer is untrained
+    (only useful when loading from a pre-saved path via from_pretrained).
+    """
 
     def __init__(
         self,
@@ -52,6 +66,7 @@ class BPETokenizer:
             self._tokenizer.save_pretrained(save_path)
 
     def __call__(self, sequence: str, **kwargs):
+        """Tokenize a protein sequence into sub-word token IDs."""
         spaced = " ".join(list(sequence))
         return self._tokenizer(spaced, **kwargs)
 

@@ -1,7 +1,0 @@
-# @package _global_.model
-# ESM-2 150M fine-tuning wrapper — loads pretrained weights from HuggingFace.
-# Architecture: 30 layers, embed=640, heads=20 (matches plant_bert_150m for fair comparison)
-_target_: plant_bert.models.esm2_finetune.ESM2FineTuner
-
-esm2_model_name: facebook/esm2_t30_150M_UR50D
-freeze_base_model: false

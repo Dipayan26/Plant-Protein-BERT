@@ -1,25 +1,36 @@
 # @package _global_.data
+# Training data configuration for the full TrEMBL plant protein dataset (~18 GB).
+# Preprocessing runs once (scripts/parse_uniprot.py) and produces:
+#   outputs/processed/trembl_full/sequences.h5   ← used at training time
+#   outputs/processed/trembl_full/filtered.jsonl ← intermediate file
 _target_: plant_bert.data.datamodule.UniProtDataModule
 
+# Raw input file — only needed for first-time preprocessing (parse_uniprot.py)
 raw_files:
   - path: DATA/PLANT_uniprot_new/uniprot_trembl_18_GB/uniprot_trembl_plants.dat.gz
     source: trembl
 
+# Where to read/write processed data (absolute path set by Hydra at runtime)
 processed_dir: ${hydra:runtime.cwd}/outputs/processed/trembl_full
 
-# Viridiplantae taxonomy filter — rejects oomycetes, dinoflagellates, etc.
-# (~15.7% of UniProt's "plant" subset are non-Viridiplantae by NCBI TaxID)
+# Taxonomy filter: removes ~15.7% non-Viridiplantae sequences from the "plant" file
+# (oomycetes, dinoflagellates, haptophytes — NOT true plants)
 taxonomy_nodes_dmp: outputs/taxonomy/nodes.dmp
 
-min_length: 50
-max_length: 1024
-max_ambiguous_frac: 0.1
-streaming: true
-buffer_size: 100000  # sequences held in memory during shuffle
+# Quality filters applied during preprocessing
+min_length: 50           # discard very short fragments
+max_length: 512         # discard unusually long sequences (also sets model max seq len)
+max_ambiguous_frac: 0.1  # discard sequences with >10% ambiguous amino acids (B/Z/X/U/O)
 
+# streaming=true reads from HDF5 one sequence at a time (required for 18 GB file)
+streaming: true
+
+# Data split: 90% train, 5% validation, 5% test
 train_split: 0.90
 val_split: 0.05
 test_split: 0.05
-batch_size: 64
-num_workers: 8
-shuffle_seed: ${seed}
+
+# batch_size overridden per-experiment (see configs/experiment/pretrain_plant_*.yaml)
+batch_size: 4
+num_workers: 8        # CPU workers for parallel data loading
+shuffle_seed: ${seed} # uses the global seed from config.yaml for reproducibility

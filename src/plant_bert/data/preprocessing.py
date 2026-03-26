@@ -1,12 +1,28 @@
-"""One-time preprocessing pipeline: raw DAT.gz → filtered JSONL → HDF5 index.
+"""One-time preprocessing pipeline: raw UniProt DAT.gz → filtered JSONL → HDF5 index.
+
+This script runs ONCE to prepare the training data.  After that, training reads
+directly from the HDF5 file.  Set force_reprocess=true to re-run if needed.
+
+Pipeline:
+  1. stream_parse_to_jsonl() — parse the raw .dat.gz and write one JSON per line.
+     Simultaneously applies taxonomy filtering (see below).
+
+  2. filter_and_deduplicate() — applies length limits and removes exact duplicates.
+     Keeps proteins between min_length (50) and max_length (1024) amino acids.
+
+  3. build_hdf5_index() — converts the JSONL to HDF5 for fast training.
+     HDF5 allows O(1) random access to any sequence by index, unlike JSONL
+     which requires reading from the start.
+
+Why taxonomy filtering?
+  UniProt's "plant" file is not actually all plants.  About 15.7% of sequences
+  are from oomycetes (Phytophthora), dinoflagellates, and haptophytes — organisms
+  that are NOT plants (Viridiplantae) but are sometimes classified alongside them.
+  We use the NCBI Taxonomy tree (nodes.dmp) to check each sequence's TaxID and
+  reject anything not under Viridiplantae (NCBI TaxID 33090).
 
 Run via: python scripts/parse_uniprot.py data=trembl_full
-Outputs are cached in outputs/processed/; set force_reprocess=true to re-run.
-
-Taxonomy filtering: sequences whose OX TaxID does not resolve to Viridiplantae
-(NCBI TaxID 33090) are rejected. This removes the ~15.7% of oomycete,
-dinoflagellate, and other non-plant sequences present in UniProt's "plant" subset.
-Requires outputs/taxonomy/nodes.dmp (downloaded once by scripts/parse_uniprot.py).
+Faster alternative (if you already have a FASTA file): scripts/fasta_to_hdf5.py
 """
 
 from __future__ import annotations
@@ -69,16 +85,6 @@ def _build_viridiplantae_resolver(nodes_dmp: Path):
 
     log.info(f"Taxonomy loaded ({len(parent):,} TaxIDs).")
     return is_viridiplantae
-
-
-def _is_valid(record: UniProtRecord, cfg: DictConfig) -> bool:
-    seq = record.sequence
-    if not (cfg.min_length <= len(seq) <= cfg.max_length):
-        return False
-    ambiguous_frac = sum(1 for aa in seq if aa in AMBIGUOUS_AA) / len(seq)
-    if ambiguous_frac > cfg.max_ambiguous_frac:
-        return False
-    return True
 
 
 def stream_parse_to_jsonl(
