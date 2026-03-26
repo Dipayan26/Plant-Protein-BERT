@@ -6,5 +6,5 @@ metrics:
   - mlm_accuracy
 
 splits_to_evaluate: [val, test]
-batch_size: 64
+batch_size: 4
 output_dir: ${hydra:runtime.cwd}/evaluation_results

@@ -1,7 +1,19 @@
+# Root Hydra configuration — composes sub-configs from each group.
+#
+# How Hydra works:
+#   This file lists "default" configs from each group (data/, model/, etc.).
+#   Experiment configs (configs/experiment/*.yaml) override these defaults
+#   for named runs.  Any value can also be overridden on the command line:
+#     python scripts/pretrain.py training.optimizer.lr=1e-3
+#
+# Every run automatically saves a full config snapshot to:
+#   outputs/YYYY-MM-DD/HH-MM-SS/.hydra/config.yaml
+# This makes every experiment 100% reproducible.
+
 defaults:
   - data: trembl_full
   - tokenizer: amino_acid
-  - model: bert_base
+  - model: bert_base     # default generic model; use +experiment= for ESM-2 matched sizes
   - training: pretrain
   - evaluation: default
   - _self_

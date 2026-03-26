@@ -1,6 +1,6 @@
+# @package _global_
 # Full pretraining run: trembl_full + bert_base
 # Usage: python scripts/pretrain.py +experiment=pretrain_base
-# @package _global_
 
 defaults:
   - override /data: trembl_full

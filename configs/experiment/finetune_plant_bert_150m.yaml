@@ -1,8 +1,8 @@
+# @package _global_
 # Fine-tune PlantBERT-150M on plant downstream tasks
 # Usage:
 #   python scripts/finetune.py +experiment=finetune_plant_bert_150m \
 #       training.pretrained_checkpoint=outputs/.../checkpoints/pretrain/last.ckpt
-# @package _global_
 
 defaults:
   - override /data: trembl_full

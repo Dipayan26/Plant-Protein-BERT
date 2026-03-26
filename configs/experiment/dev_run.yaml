@@ -1,6 +1,6 @@
+# @package _global_
 # Quick sanity-check: trembl_full + bert_small — validates the full pipeline works fast
 # Usage: python scripts/pretrain.py +experiment=dev_run
-# @package _global_
 
 defaults:
   - override /data: trembl_full

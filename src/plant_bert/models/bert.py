@@ -1,18 +1,43 @@
-"""PlantProteinBERT: wraps HuggingFace BertForMaskedLM with protein-specific configuration.
+"""PlantProteinBERT: our BERT model trained on plant protein sequences.
 
-Uses transformers.BertConfig constructed from Hydra model config — no reimplementation.
-Exposes get_sequence_embedding() for [CLS]-token representations used in fine-tuning.
+What is BERT?
+  BERT (Bidirectional Encoder Representations from Transformers) is a neural
+  network that reads sequences using self-attention — every position can attend
+  to every other position simultaneously (unlike LSTMs which read left-to-right).
+  This bidirectional context gives it a richer understanding of each position.
+
+What is Masked Language Modeling (MLM)?
+  During pretraining we randomly mask 15% of amino acid tokens and ask the model
+  to predict what they were.  For example:
+      Input:  A C D [MASK] G H I K L
+      Target: predict "E" at position 4 (the masked token)
+  The model must understand the surrounding sequence context to make this prediction.
+  After training on millions of such examples, the model learns a rich representation
+  of protein sequence patterns — effectively learning "protein grammar".
+
+Architecture (configurable via configs/model/plant_bert_*.yaml):
+  - Embedding layer: converts token IDs to continuous vectors
+  - N transformer encoder layers (stacked self-attention + feedforward blocks)
+  - MLM head: linear layer that predicts token ID at masked positions
+
+We do NOT reimplement BERT — we use HuggingFace's BertForMaskedLM directly,
+just configuring it with protein-specific dimensions that match ESM-2 sizes.
 """
 
 from __future__ import annotations
 
 import torch
 import torch.nn as nn
-from omegaconf import DictConfig
-from transformers import BertConfig, BertForMaskedLM, BertModel
+from transformers import BertConfig, BertForMaskedLM
 
 
 class PlantProteinBERT(nn.Module):
+    """BERT model configured for plant protein MLM pretraining.
+
+    After pretraining, call get_sequence_embedding() to get a fixed-size
+    vector per protein — used as input to the fine-tuning classification head.
+    """
+
     def __init__(
         self,
         hidden_size: int,
@@ -31,6 +56,8 @@ class PlantProteinBERT(nn.Module):
     ) -> None:
         super().__init__()
 
+        # BertConfig holds all architecture hyperparameters.
+        # We set type_vocab_size=1 because protein sequences have no sentence-type segments.
         bert_config = BertConfig(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
@@ -46,12 +73,23 @@ class PlantProteinBERT(nn.Module):
             layer_norm_eps=layer_norm_eps,
         )
 
-        if pretrained_checkpoint:
-            self.bert = BertForMaskedLM.from_pretrained(pretrained_checkpoint, config=bert_config)
-        else:
-            self.bert = BertForMaskedLM(bert_config)
+        # BertForMaskedLM = BERT encoder + MLM prediction head.
+        # The MLM head is a linear layer: hidden_size → vocab_size.
+        # It outputs one score per vocabulary token at each sequence position.
+        self.bert = BertForMaskedLM(bert_config)
 
-        self.config = bert_config
+        if pretrained_checkpoint:
+            # PyTorch Lightning saves the full training state (optimizer, steps, etc.)
+            # in a checkpoint.  We only need the model weights, stored under the
+            # "model.bert.*" prefix (because MLMPretrainer stores self.model = PlantProteinBERT,
+            # and the BertForMaskedLM lives at self.model.bert).
+            ckpt = torch.load(pretrained_checkpoint, map_location="cpu", weights_only=False)
+            state_dict = ckpt.get("state_dict", ckpt)
+            prefix = "model.bert."
+            bert_weights = {k[len(prefix):]: v for k, v in state_dict.items() if k.startswith(prefix)}
+            self.bert.load_state_dict(bert_weights)
+
+        self.config = bert_config   # expose config so FineTuner can read hidden_size
 
     def forward(
         self,
@@ -59,6 +97,12 @@ class PlantProteinBERT(nn.Module):
         attention_mask: torch.Tensor | None = None,
         labels: torch.Tensor | None = None,
     ) -> object:
+        """Run the model.
+
+        When labels are provided (during training), BertForMaskedLM automatically
+        computes cross-entropy loss at masked positions (where labels != -100).
+        Returns a ModelOutput with .loss and .logits.
+        """
         return self.bert(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
     def get_sequence_embedding(
@@ -66,10 +110,15 @@ class PlantProteinBERT(nn.Module):
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Return [CLS] token hidden state as a fixed-size sequence representation."""
-        outputs = self.bert.bert(input_ids=input_ids, attention_mask=attention_mask)
-        return outputs.last_hidden_state[:, 0, :]  # [batch_size, hidden_size]
+        """Extract the [CLS] token's hidden state as a sequence-level embedding.
 
-    @classmethod
-    def from_checkpoint(cls, checkpoint_path: str) -> "PlantProteinBERT":
-        return torch.load(checkpoint_path, weights_only=False)
+        BERT prepends a special [CLS] token to every sequence.  After training,
+        its hidden state aggregates global sequence information and works as a
+        fixed-size vector representation for the whole protein.
+
+        Shape: [batch_size, hidden_size]
+        """
+        outputs = self.bert.bert(input_ids=input_ids, attention_mask=attention_mask)
+        # last_hidden_state shape: [batch, seq_len, hidden_size]
+        # Index 0 along seq_len selects the [CLS] token position.
+        return outputs.last_hidden_state[:, 0, :]

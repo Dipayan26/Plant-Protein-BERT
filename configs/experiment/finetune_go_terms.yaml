@@ -1,6 +1,6 @@
+# @package _global_
 # Fine-tune on GO term prediction
 # Usage: python scripts/finetune.py +experiment=finetune_go_terms training.pretrained_checkpoint=<path>
-# @package _global_
 
 defaults:
   - override /data: trembl_full

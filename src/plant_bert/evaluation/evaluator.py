@@ -1,4 +1,11 @@
-"""Evaluation runner for pretrained and fine-tuned models."""
+"""Standalone evaluation runner for pretrained models.
+
+Used by scripts/evaluate.py to benchmark a trained checkpoint on val/test splits.
+Computes perplexity and MLM accuracy (see metrics.py for definitions).
+
+For fine-tuned models evaluated during training, use the built-in Lightning
+validation/test steps in finetune.py — this Evaluator is only for pretraining.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +13,6 @@ import logging
 from pathlib import Path
 
 import torch
-from omegaconf import DictConfig
 from tqdm import tqdm
 
 from .metrics import compute_mlm_accuracy, compute_perplexity
@@ -15,6 +21,8 @@ log = logging.getLogger(__name__)
 
 
 class Evaluator:
+    """Runs evaluation over a dataloader and returns metric dictionaries."""
+
     def __init__(
         self,
         metrics: list[str],
@@ -29,12 +37,16 @@ class Evaluator:
         self.output_dir = Path(output_dir)
 
     def evaluate(self, model: object, dataloader: object, split: str) -> dict[str, float]:
+        """Iterate over a dataloader and compute average metrics.
+
+        Returns a dict like {"val/mlm_loss": 2.3, "val/perplexity": 9.9, ...}
+        """
         model.eval()
         total_loss = 0.0
         total_accuracy = 0.0
         n_batches = 0
 
-        with torch.no_grad():
+        with torch.no_grad():   # no_grad disables gradient computation (saves memory)
             for batch in tqdm(dataloader, desc=f"Evaluating {split}"):
                 outputs = model(**batch)
                 total_loss += outputs.loss.item()
