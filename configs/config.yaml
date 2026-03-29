@@ -12,7 +12,7 @@
 
 defaults:
   - data: trembl_full
-  - tokenizer: amino_acid
+  - tokenizer: amino_acid ## here i amwriting it in main branch 
   - model: bert_base     # default generic model; use +experiment= for ESM-2 matched sizes
   - training: pretrain
   - evaluation: default
