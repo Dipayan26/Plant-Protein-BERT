@@ -15,7 +15,7 @@ defaults:
   - tokenizer: amino_acid ## here i update in the branch where it is written
   - model: bert_base     # default generic model; use +experiment= for ESM-2 matched sizes
   - training: pretrain
-  - evaluation: default
+  - evaluation: default # agai changing in test br anter merging 
   - _self_
 
 hydra:
