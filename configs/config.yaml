@@ -9,10 +9,10 @@
 # Every run automatically saves a full config snapshot to:
 #   outputs/YYYY-MM-DD/HH-MM-SS/.hydra/config.yaml
 # This makes every experiment 100% reproducible.
-
+# =============================================== updated this file where nothing is written 
 defaults:
   - data: trembl_full
-  - tokenizer: amino_acid ## here i amwriting it in main branch 
+  - tokenizer: amino_acid ## here i update in the branch where it is written
   - model: bert_base     # default generic model; use +experiment= for ESM-2 matched sizes
   - training: pretrain
   - evaluation: default
