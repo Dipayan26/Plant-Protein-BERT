@@ -4,9 +4,10 @@
 #   Adam β1=0.9, β2=0.98, ε=1e-8, LR=4e-4, WD=0.01, no clip_norm
 #   Warmup 2000 steps → linear decay to 10% over 90% of training
 #
-# Compute budget for single GPU:
-#   batch_size=32, accum=4 → eff_batch=128 seqs × ~512 avg AA = ~65K tokens/step
-#   200K steps ≈ 3 passes through 21.5M plant sequences at batch=32
+# Compute budget for single RTX 3060 12GB GPU:
+#   batch_size=32, accum=4 → eff_batch=128 seqs × ~200 avg AA ≈ 25K tokens/step
+#   200K steps ≈ 200K × 128 / 19.9M ≈ ~1.3 passes through the dataset
+#   VRAM: attention maps = 32 × 20 × 200 × 200 × 6 layers ≈ 300MB — safe for 12GB
 _target_: plant_bert.training.pretrain.MLMPretrainer
 
 mlm_probability: 0.15
@@ -32,7 +33,7 @@ trainer:
   log_every_n_steps: 100
   gradient_clip_val: 0.0       # ESM-2 Table S3: clip_norm=0 for 8M
   precision: 16-mixed
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 4   # accumulate 4 mini-batches → effective batch = 4 × data.batch_size
   devices: 1
   strategy: auto
 

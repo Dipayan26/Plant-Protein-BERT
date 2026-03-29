@@ -9,6 +9,7 @@ defaults:
   - override /tokenizer: amino_acid
   - override /training: pretrain_8m
 
-# Override batch size for 8M (larger batch fits in memory)
+# batch_size=32 × accumulate_grad_batches=4 → effective batch = 128 sequences per update
+# Safe for RTX 3060 12GB: attention VRAM ≈ 300MB vs ~10GB+ with batch_size=192
 data:
-  batch_size: 192
+  batch_size: 32
