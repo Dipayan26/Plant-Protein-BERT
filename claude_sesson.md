@@ -11,3 +11,4 @@ claude --resume 418ce92a-7509-4f76-ad26-b290bd4ecd31
 
 Resume this session with:
 claude --resume 418ce92a-7509-4f76-ad26-b290bd4ecd31
+claude --resume 418ce92a-7509-4f76-ad26-b290bd4ecd31 
