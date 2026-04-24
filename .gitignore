@@ -224,3 +224,4 @@ artifacts/tokenizers/*.txt
 .csv
 lightning_logs
 Papers
+checkpoints
