@@ -12,4 +12,4 @@ defaults:
 # batch_size=32 × accumulate_grad_batches=4 → effective batch = 128 sequences per update
 # Safe for RTX 3060 12GB: attention VRAM ≈ 300MB vs ~10GB+ with batch_size=192
 data:
-  batch_size: 32
+  batch_size: 148

@@ -21,6 +21,7 @@ from __future__ import annotations
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Split
+from tokenizers.processors import TemplateProcessing
 from transformers import PreTrainedTokenizerFast
 
 
@@ -48,6 +49,14 @@ class AminoAcidTokenizer:
         tokenizer = Tokenizer(WordLevel(vocab=vocab, unk_token="[UNK]"))
         # Split on every character so each amino acid becomes its own token.
         tokenizer.pre_tokenizer = Split(pattern="", behavior="isolated")
+        tokenizer.post_processor = TemplateProcessing(
+            single="[CLS] $A [SEP]",
+            pair="[CLS] $A [SEP] $B:1 [SEP]:1",
+            special_tokens=[
+                ("[CLS]", vocab["[CLS]"]),
+                ("[SEP]", vocab["[SEP]"]),
+            ],
+        )
 
         self._tokenizer = PreTrainedTokenizerFast(
             tokenizer_object=tokenizer,
@@ -63,11 +72,10 @@ class AminoAcidTokenizer:
     def __call__(self, sequence: str, **kwargs):
         """Tokenize a protein sequence string into token IDs.
 
-        Inserts spaces between amino acids so the WordLevel tokenizer treats
-        each character independently: "ACDEF" → "A C D E F" → [5, 6, 7, 8, 9].
+        Each amino acid character is tokenized directly:
+        "ACDEF" → [CLS] A C D E F [SEP].
         """
-        spaced = " ".join(list(sequence))
-        return self._tokenizer(spaced, **kwargs)
+        return self._tokenizer(sequence, **kwargs)
 
     @property
     def vocab_size(self) -> int:

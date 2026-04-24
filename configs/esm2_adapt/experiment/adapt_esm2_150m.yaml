@@ -1,0 +1,19 @@
+# @package _global_
+# PlantESM2-150M: domain-adaptive pretraining of esm2_t30_150M_UR50D on plant proteins
+# Usage: python scripts/adapt_esm2.py +experiment=adapt_esm2_150m
+#
+# This is the primary experiment.  After training:
+#   checkpoints/esm2_adapt/150m/last.ckpt          ← Lightning checkpoint
+#   checkpoints/esm2_adapt/150m/hf_model/          ← HuggingFace format
+#
+# Downstream fine-tuning comparison:
+#   Baseline:  facebook/esm2_t30_150M_UR50D  (vanilla, no plant adaptation)
+#   Ours:      checkpoints/esm2_adapt/150m/hf_model
+#   Hypothesis: ours outperforms baseline on plant-specific tasks
+
+defaults:
+  - override /model: esm2_150m
+  - override /training: adapt_150m
+
+data:
+  batch_size: 16

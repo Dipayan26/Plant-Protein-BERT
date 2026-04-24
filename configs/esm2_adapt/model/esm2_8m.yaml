@@ -1,0 +1,8 @@
+# @package _global_.model
+# ESM-2 8M parameter model
+# Architecture: 6 layers, hidden=320, heads=20, ffn=1280
+# VRAM (full training): ~2 GB — safe for any modern GPU
+_target_: plant_bert.adapt.model.PlantESM2
+
+hub_name: facebook/esm2_t6_8M_UR50D
+gradient_checkpointing: false

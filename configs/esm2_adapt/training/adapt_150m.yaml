@@ -1,0 +1,49 @@
+# @package _global_.training
+# Domain-adaptive continued pretraining — ESM-2 150M
+#
+# Token budget: 1.6B tokens
+#   batch=16 × avg_seq≈250 AA × accum=4 = ~16K tokens/update
+#   1.6B / 16K ≈ 100K steps  (≈ 0.4 passes over the 4B-token plant dataset)
+#
+# Strategy: recalibrate ESM-2 representations toward plant-specific sequence
+# statistics without catastrophic forgetting of general protein biochemistry.
+# Running beyond 100K steps (>0.4 passes) risks overfitting to the TrEMBL
+# plant subset and should only be done with a validated downstream task gain.
+#
+# LR schedule:
+#   Peak: 1e-5  (40× lower than ESM-2 from-scratch 4e-4)
+#   Warmup: 200 steps → linear decay to 1e-6 over remaining steps
+_target_: plant_bert.adapt.trainer.ESM2Adapter
+
+mlm_probability: 0.15
+
+token_budget: 1_600_000_000   # 1.6B tokens — stop here and evaluate downstream tasks
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-5
+  betas: [0.9, 0.98]
+  weight_decay: 0.01
+  eps: 1.0e-8
+
+scheduler:
+  _target_: transformers.get_linear_schedule_with_warmup
+  num_warmup_steps: 200        # very short — model already converged
+  num_training_steps: 105000   # ceiling
+
+trainer:
+  max_steps: 105000
+  val_check_interval: 2000
+  log_every_n_steps: 50
+  gradient_clip_val: 1.0
+  precision: 16-mixed
+  accumulate_grad_batches: 4
+  devices: 1
+  strategy: auto
+
+checkpoint:
+  monitor: val/mlm_loss
+  mode: min
+  save_top_k: 2
+  save_last: true
+  dirpath: ${hydra:runtime.cwd}/checkpoints/esm2_adapt/150m

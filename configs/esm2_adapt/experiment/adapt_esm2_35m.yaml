@@ -1,0 +1,10 @@
+# @package _global_
+# PlantESM2-35M: domain-adaptive pretraining of esm2_t12_35M_UR50D on plant proteins
+# Usage: python scripts/adapt_esm2.py +experiment=adapt_esm2_35m
+
+defaults:
+  - override /model: esm2_35m
+  - override /training: adapt_35m
+
+data:
+  batch_size: 32

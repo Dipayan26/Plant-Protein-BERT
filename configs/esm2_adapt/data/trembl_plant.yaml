@@ -1,0 +1,22 @@
+# @package _global_.data
+# Points to the same preprocessed HDF5 used by scratch pretraining.
+# No re-processing needed — the file is already Viridiplantae-filtered and clean.
+_target_: plant_bert.data.datamodule.UniProtDataModule
+
+processed_dir: ${hydra:runtime.cwd}/outputs/processed/trembl_full
+
+# 512 AA + 2 ESM-2 boundary tokens (<cls>, <eos>) = 514 max tokens.
+# All sequences in the HDF5 are ≤ 512 AA (filtered at parse time), so
+# truncation never fires — this is a safety ceiling only.
+max_length: 514
+
+streaming: true
+
+train_split: 0.90
+val_split: 0.05
+test_split: 0.05
+
+# Overridden per experiment
+batch_size: 8
+num_workers: 8
+shuffle_seed: ${seed}

@@ -1,0 +1,14 @@
+# @package _global_
+# PlantESM2-8M: domain-adaptive pretraining of esm2_t6_8M_UR50D on plant proteins
+# Usage: python scripts/adapt_esm2.py +experiment=adapt_esm2_8m
+#
+# After training, compare against vanilla esm2_t6_8M_UR50D on:
+#   - GO term prediction (configs/experiment/finetune_plant_bert_8m.yaml baseline)
+#   - Subcellular localization, signal peptide detection, etc.
+
+defaults:
+  - override /model: esm2_8m
+  - override /training: adapt_8m
+
+data:
+  batch_size: 64

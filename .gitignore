@@ -220,3 +220,6 @@ artifacts/tokenizers/*.txt
 =2.2
 =2.3
 =3.10
+
+.csv
+lightning_logs

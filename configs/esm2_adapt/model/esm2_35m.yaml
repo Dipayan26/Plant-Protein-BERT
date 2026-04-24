@@ -1,0 +1,8 @@
+# @package _global_.model
+# ESM-2 35M parameter model
+# Architecture: 12 layers, hidden=480, heads=20, ffn=1920
+# VRAM (full training): ~4 GB — safe for RTX 3060 12 GB
+_target_: plant_bert.adapt.model.PlantESM2
+
+hub_name: facebook/esm2_t12_35M_UR50D
+gradient_checkpointing: false

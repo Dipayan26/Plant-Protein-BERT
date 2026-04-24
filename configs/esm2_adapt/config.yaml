@@ -1,0 +1,22 @@
+# Root config for ESM-2 domain-adaptive pretraining.
+# Completely separate from configs/config.yaml (scratch pretraining).
+# Hydra composes sub-configs from the groups below; experiments override these defaults.
+#
+# Run with:
+#   python scripts/adapt_esm2.py +experiment=adapt_esm2_150m
+
+defaults:
+  - data: trembl_plant
+  - model: esm2_150m        # default: 150M — best quality/VRAM tradeoff
+  - training: adapt_150m
+  - _self_
+
+hydra:
+  run:
+    dir: outputs/esm2_adapt/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/esm2_adapt/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+
+seed: 42
+project_name: plant-esm2-adapt

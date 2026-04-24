@@ -16,11 +16,21 @@ def test_vocab_size(tokenizer):
 
 
 def test_encode_returns_correct_length(tokenizer):
-    # Tokenizer spaces AAs: "ACDEF" → "A C D E F" (9 chars)
-    # Split on every char → 5 AAs + 4 spaces = 2*N-1 tokens (no CLS/SEP appended)
+    # Default behavior appends [CLS] and [SEP] around the amino acid sequence.
     seq = "ACDEF"
     encoding = tokenizer(seq, padding=False, return_tensors=None)
-    assert len(encoding["input_ids"]) == len(seq) * 2 - 1
+    assert len(encoding["input_ids"]) == len(seq) + 2
+
+
+def test_encode_without_special_tokens_has_no_interstitial_unk(tokenizer):
+    encoding = tokenizer("ACD", padding=False, return_tensors=None, add_special_tokens=False)
+    assert encoding["input_ids"] == [5, 6, 7]
+
+
+def test_special_tokens_are_appended_by_default(tokenizer):
+    encoding = tokenizer("ACD", padding=False, return_tensors=None)
+    assert encoding["input_ids"][0] == tokenizer._tokenizer.cls_token_id
+    assert encoding["input_ids"][-1] == tokenizer._tokenizer.sep_token_id
 
 
 def test_special_token_ids(tokenizer):
@@ -42,6 +52,5 @@ def test_ambiguous_aa_in_vocab(tokenizer):
     # B, Z, X, U, O are in vocab and must not map to [UNK]
     unk_id = tokenizer._tokenizer.unk_token_id
     for aa in "BZXUO":
-        enc = tokenizer(aa, padding=False, return_tensors=None)
-        # Single AA → spaced = "aa" → 1 token at index 0
+        enc = tokenizer(aa, padding=False, return_tensors=None, add_special_tokens=False)
         assert enc["input_ids"][0] != unk_id, f"{aa} mapped to [UNK]"
