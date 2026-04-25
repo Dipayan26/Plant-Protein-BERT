@@ -57,6 +57,16 @@ class ESM2Adapter(pl.LightningModule):
         self.log("val/mlm_loss", loss, prog_bar=True, sync_dist=True)
         self.log("val/perplexity", perplexity, sync_dist=True)
 
+        preds = outputs.logits.argmax(-1)
+        mask = batch["labels"] != -100
+        acc = (preds[mask] == batch["labels"][mask]).float().mean()
+        self.log("val/masked_token_acc", acc, sync_dist=True)
+
+        if batch_idx == 0 and torch.cuda.is_available():
+            self.log("sys/gpu_mem_GB", torch.cuda.memory_allocated() / 1e9, sync_dist=False)
+            self.log("sys/gpu_mem_peak_GB", torch.cuda.max_memory_allocated() / 1e9, sync_dist=False)
+            torch.cuda.reset_peak_memory_stats()
+
     def configure_optimizers(self):
         optimizer = instantiate(self.cfg.optimizer, params=self.model.parameters())
         scheduler = instantiate(self.cfg.scheduler, optimizer=optimizer)

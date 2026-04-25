@@ -10,5 +10,9 @@ defaults:
   - override /model: esm2_8m
   - override /training: adapt_8m
 
+wandb:
+  name: esm2-8m-plant-adapt
+  tags: [esm2, 8m, plant, continued-pretraining]
+
 data:
   batch_size: 64

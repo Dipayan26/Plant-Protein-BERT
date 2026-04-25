@@ -31,8 +31,9 @@ import torch
 import hydra
 import pytorch_lightning as pl
 from hydra.utils import instantiate
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
+from pytorch_lightning.loggers import WandbLogger
 from transformers import EsmTokenizer, DataCollatorForLanguageModeling
 
 from plant_bert.adapt.trainer import TokenBudgetCallback
@@ -78,13 +79,26 @@ def main(cfg: DictConfig) -> None:
         _recursive_=False,
     )
 
+    wandb_logger = WandbLogger(
+        project=cfg.wandb.project,
+        name=cfg.wandb.name,
+        tags=list(cfg.wandb.tags),
+        notes=cfg.wandb.notes,
+        config=OmegaConf.to_container(cfg, resolve=True),
+    )
+
     callbacks = [
         ModelCheckpoint(**cfg.training.checkpoint),
         LearningRateMonitor(logging_interval="step"),
         TokenBudgetCallback(token_budget=cfg.training.token_budget),
     ]
 
-    trainer = pl.Trainer(**cfg.training.trainer, callbacks=callbacks)
+    trainer = pl.Trainer(**cfg.training.trainer, callbacks=callbacks, logger=wandb_logger)
+
+    # Log gradient norms per layer every 500 steps — useful for detecting
+    # catastrophic forgetting during continued pretraining.
+    wandb_logger.watch(trainer_module, log="gradients", log_freq=500, log_graph=False)
+
     trainer.fit(trainer_module, datamodule=datamodule)
 
     # Export adapted weights in HuggingFace format alongside the Lightning checkpoint.

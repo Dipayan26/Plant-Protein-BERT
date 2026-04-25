@@ -20,3 +20,9 @@ hydra:
 
 seed: 42
 project_name: plant-esm2-adapt
+
+wandb:
+  project: ${project_name}
+  name: null          # null → WandB auto-generates; override per-experiment
+  tags: []
+  notes: ""

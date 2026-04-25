@@ -41,4 +41,12 @@
   To run: python scripts/adapt_esm2.py +experiment=adapt_esm2_150m                          
                                                                                        
 ✻ Cooked for 8m 25s                                                                         
-                                                   
+                                                  
+
+
+
+● Data is ready. In your terminal:
+
+  conda activate plantbert
+  cd /home/dipayan/Documents/Plant-Protein-BERT
+  python scripts/adapt_esm2.py +experiment=adapt_esm2_8m

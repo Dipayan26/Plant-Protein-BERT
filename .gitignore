@@ -225,3 +225,4 @@ artifacts/tokenizers/*.txt
 lightning_logs
 Papers
 checkpoints
+wandb
