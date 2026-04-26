@@ -16,4 +16,4 @@ defaults:
   - override /training: adapt_150m
 
 data:
-  batch_size: 16
+  batch_size: 8

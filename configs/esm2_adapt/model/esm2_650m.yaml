@@ -1,0 +1,28 @@
+# @package _global_.model
+# ESM-2 650M parameter model — LoRA-only on RTX 3060 12 GB
+# Architecture: 33 layers, hidden=1280, heads=20, ffn=5120
+#
+# Why LoRA:
+#   Full-param AdamW optimizer states = 650M × 12 bytes = 7.8 GB
+#   Frozen base + LoRA adapters (r=16 on Q,K,V) ≈ 4M trainable params → 50 MB optimizer states
+#   Total VRAM at batch=8: ~5-6 GB — fits comfortably on RTX 3060 12 GB
+#
+# LoRA target modules:
+#   "query", "key", "value" — the attention projection matrices in each layer
+#   33 layers × 3 matrices × 2 × (1280 × 16) = ~4M trainable params
+#   (≈ 0.6% of 650M total params)
+#
+# Inference: save_hf_checkpoint() merges adapters into base weights →
+#   output loads as a standard EsmForMaskedLM with no PEFT dependency
+_target_: plant_bert.adapt.model.PlantESM2
+
+hub_name: facebook/esm2_t33_650M_UR50D
+gradient_checkpointing: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: ["query", "key", "value"]
+  lora_dropout: 0.05
+  bias: none
+  inference_mode: false

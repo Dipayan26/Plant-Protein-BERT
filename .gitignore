@@ -226,3 +226,4 @@ lightning_logs
 Papers
 checkpoints
 wandb
+*.safetensors

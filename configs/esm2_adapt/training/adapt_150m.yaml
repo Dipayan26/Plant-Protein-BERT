@@ -2,8 +2,8 @@
 # Domain-adaptive continued pretraining — ESM-2 150M
 #
 # Token budget: 1.6B tokens
-#   batch=16 × avg_seq≈250 AA × accum=4 = ~16K tokens/update
-#   1.6B / 16K ≈ 100K steps  (≈ 0.4 passes over the 4B-token plant dataset)
+#   batch=8 × avg_seq≈305 AA × accum=8 = ~19.5K tokens/update  (measured from 8M run)
+#   1.6B / 19.5K ≈ 82K steps  (≈ 0.4 passes over the 4B-token plant dataset)
 #
 # Strategy: recalibrate ESM-2 representations toward plant-specific sequence
 # statistics without catastrophic forgetting of general protein biochemistry.
@@ -37,7 +37,7 @@ trainer:
   log_every_n_steps: 50
   gradient_clip_val: 1.0
   precision: 16-mixed
-  accumulate_grad_batches: 4
+  accumulate_grad_batches: 8
   devices: 1
   strategy: auto
 

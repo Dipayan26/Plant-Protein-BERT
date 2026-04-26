@@ -1,7 +1,8 @@
 # @package _global_.model
 # ESM-2 150M parameter model  (recommended for domain-adaptive pretraining)
 # Architecture: 30 layers, hidden=640, heads=20, ffn=2560
-# VRAM (full training + gradient checkpointing): ~8 GB at batch=16
+# VRAM (full training + gradient checkpointing): ~8-9 GB at batch=8, seq=514
+# batch=16 OOMs on RTX 3060 12 GB — use batch=8 + accum=8 instead
 # Comparable to ESM-1b 650M on many downstream benchmarks (Lin et al. 2022)
 _target_: plant_bert.adapt.model.PlantESM2
 

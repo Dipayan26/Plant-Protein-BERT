@@ -1,0 +1,29 @@
+# @package _global_
+# PlantESM2-650M: LoRA domain-adaptive pretraining of esm2_t33_650M_UR50D on plant proteins
+# Usage: python scripts/adapt_esm2.py +experiment=adapt_esm2_650m
+#
+# Full-parameter training of 650M is not feasible on 12 GB VRAM (AdamW optimizer
+# states alone require 7.8 GB).  LoRA trains only ~4M adapter parameters,
+# reducing optimizer states to ~50 MB while keeping the 650M base frozen.
+#
+# After training, save_hf_checkpoint() merges adapters into the base weights.
+# The output at checkpoints/esm2_adapt/650m/hf_model loads as a standard
+# EsmForMaskedLM — no PEFT dependency needed at inference or fine-tuning.
+#
+# Downstream comparison:
+#   Baseline:  facebook/esm2_t33_650M_UR50D
+#   Ours:      checkpoints/esm2_adapt/650m/hf_model
+
+defaults:
+  - override /model: esm2_650m
+  - override /training: adapt_650m
+
+wandb:
+  name: esm2-650m-plant-adapt
+  tags: [esm2, 650m, plant, continued-pretraining, lora]
+
+data:
+  batch_size: 4
+
+
+
