@@ -23,6 +23,6 @@ project_name: plant-esm2-adapt
 
 wandb:
   project: ${project_name}
-  name: null          # null → WandB auto-generates; override per-experiment
+  name: plantplm-${hydra:runtime.choices.model}-adapt   # e.g. plantplm-esm2_150m-adapt
   tags: []
   notes: ""

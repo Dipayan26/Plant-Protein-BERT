@@ -15,5 +15,9 @@ defaults:
   - override /model: esm2_150m
   - override /training: adapt_150m
 
+wandb:
+  name: esm2-150m-plant-adapt
+  tags: [esm2, 150m, plant, continued-pretraining]
+
 data:
   batch_size: 8

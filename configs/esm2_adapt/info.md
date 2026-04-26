@@ -50,3 +50,88 @@
   conda activate plantbert
   cd /home/dipayan/Documents/Plant-Protein-BERT
   python scripts/adapt_esm2.py +experiment=adapt_esm2_8m
+
+
+####### choose data 
+
+❯ is there any guide for finetuning token selection ?                                                  
+                                                                                                       
+● There's no single universal formula, but there are established frameworks. Here's the practical      
+  landscape:                                                                                           
+                                                                                                       
+  ---
+  The foundational reference: Chinchilla (from-scratch)                                                
+                                                                                                       
+  Hoffmann et al. 2022 ("Training Compute-Optimal LLMs") gives the from-scratch optimal rule:
+                                                                                                       
+  tokens = 20 × parameters                                                                             
+   
+  ┌────────────┬──────────────────────┬──────────────────┬─────────────────────────────────┐           
+  │ Your model │ From-scratch optimal │ Your DAPT budget │              Ratio              │
+  ├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
+  │ 8M         │ 160M tokens          │ 800M             │ 5× over-trained (fine for DAPT) │
+  ├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
+  │ 35M        │ 700M tokens          │ 800M             │ 1.1×                            │           
+  ├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
+  │ 150M       │ 3B tokens            │ 1.6B             │ 0.5×                            │           
+  ├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
+  │ 650M       │ 13B tokens           │ 1.6B             │ 0.12× under-trained             │
+  └────────────┴──────────────────────┴──────────────────┴─────────────────────────────────┘           
+                  
+  Chinchilla is for from-scratch training. For DAPT you need far less because the model already knows  
+  protein biochemistry.
+                                                                                                       
+  ---             
+  The key DAPT reference: "Don't Stop Pretraining"
+                                                  
+  Gururangan et al. 2020 (ACL) is the most-cited DAPT paper. Key findings:
+  - DAPT always helps for domain-specific tasks                                                        
+  - They trained for roughly 12.5% of the original pretraining budget
+  - They did not tune the token count — just used a fixed compute budget and stopped                   
+  - Downstream task gain, not MLM loss, is what actually matters                                       
+                                                                                                       
+  They found diminishing returns after ~0.1–0.2 passes over the domain corpus, which matches your      
+  configs.                                                                                             
+                                                                                                       
+  ---                                                                                                  
+  Protein-specific guidance
+                                                                                                       
+  There's no published formula specifically for protein LM DAPT. The papers that do it (ProtST, ESM
+  fine-tuning papers) typically just report: "we trained for N steps" without rigorous token budget    
+  justification. What they consistently do:
+                                                                                                       
+  - Use 1–10% of the original training compute                                                         
+  - Stop at val loss plateau, not a fixed budget
+  - Validate on a downstream task (GO terms, localization) — that's the real signal, not MLM perplexity
+                                                                                                       
+  ---                                                                                                  
+  Practical decision framework                                                                         
+                  
+  1. Compute your domain corpus size in tokens
+     → yours: 19.9M seqs × avg 339 AA = 6.76B tokens                                                   
+                                                                                                       
+  2. Set a "passes" target:                                                                            
+     - 0.1 passes → light adaptation, low forgetting risk                                              
+     - 0.25 passes → moderate adaptation (your 150M/650M)                                              
+     - 0.5 passes → strong adaptation, monitor for forgetting
+     - >1 pass → only if you have strong downstream evidence it helps                                  
+                                                                                                       
+  3. Multiply: budget = passes × corpus_tokens                                                         
+     → 0.12 × 6.76B = 810M ≈ your 800M ✓                                                               
+                                                                                                       
+  4. Sanity check against Chinchilla:
+     - If budget > 5× Chinchilla optimal: you may be wasting compute                                   
+     - If budget < 0.05× Chinchilla optimal: likely too little signal                                  
+                                                                                                       
+  5. The real stopping criterion: checkpoint every ~20% of budget,                                     
+     run your linear probe benchmark, stop when downstream gain plateaus                               
+                                                                                                       
+  ---             
+  The honest answer
+                                                                                                       
+  Your budgets (800M and 1.6B) are well-reasoned and consistent with the DAPT literature. The field
+  doesn't have a precise formula — the best practice is to checkpoint frequently and evaluate          
+  downstream task performance, which is what your benchmark script (scripts/benchmark_plant_tasks.py)
+  is designed to do.                                                                                   
+                  
+✻ Baked for 35s                 
