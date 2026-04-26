@@ -18,11 +18,11 @@ pipeline_tag: fill-mask
 
 # PlantPLM-8M
 
-**ESM-2 8M parameter model continued-pretrained on 19.9 million Viridiplantae (plant) protein sequences.**
+**ESM-2 8M parameter model continued-pretrained on Viridiplantae (plant) protein sequences.**
 
 This is a domain-adapted version of [`facebook/esm2_t6_8M_UR50D`](https://huggingface.co/facebook/esm2_t6_8M_UR50D), fine-tuned on a curated subset of UniProt TrEMBL containing only plant-kingdom proteins. The adaptation improves representation quality for plant-specific protein tasks compared to the general-purpose ESM-2 baseline.
 
-Part of the **[Plant-Protein-BERT collection](https://huggingface.co/collections/dipayan26/plant-protein-bert)** — ESM-2 models at 8M, 35M, 150M, and 650M parameters, each adapted on the same plant protein corpus.
+Part of the **[Plant-PLM](https://huggingface.co/collections/dipayan26/plant-plm)** - ESM-2 models at 8M, 35M, 150M, and 650M parameters, each adapted on the same plant protein corpus.
 
 ---
 
@@ -44,7 +44,6 @@ Part of the **[Plant-Protein-BERT collection](https://huggingface.co/collections
 | Property | Value |
 |---|---|
 | Source | UniProt TrEMBL — Viridiplantae (plant kingdom) subset |
-| Taxonomy filter | Viridiplantae only (NCBI TaxID tree walk — removes oomycetes and dinoflagellates misclassified as plants in UniProt's keyword-based plant subset) |
 | Sequences | **19,938,415** protein sequences |
 | Avg sequence length | 339 AA · median 291 AA |
 | Estimated total tokens | **~6.76 billion** amino acid tokens |
@@ -57,16 +56,13 @@ Part of the **[Plant-Protein-BERT collection](https://huggingface.co/collections
 | Hyperparameter | Value |
 |---|---|
 | Token budget | 800M tokens (training stopped at budget, not epoch end) |
-| Steps completed | 41,036 of 55,000 max |
 | Batch size | 64 sequences |
-| Max sequence length | 514 tokens (512 AA + `<cls>` + `<eos>`) |
 | Optimizer | AdamW · β=(0.9, 0.98) · ε=1e-8 · weight_decay=0.01 |
 | Learning rate | 2e-5 (20× lower than ESM-2 from-scratch to prevent catastrophic forgetting) |
 | LR schedule | Linear warmup (500 steps) → linear decay |
 | Gradient clipping | 1.0 |
 | Precision | 16-bit mixed (bf16 activations, fp32 optimizer states) |
-| Hardware | NVIDIA RTX 3060 12 GB |
-| Training time | ~14.9 hours |
+
 
 **Final metrics (validation set, 5% holdout):**
 
@@ -140,7 +136,6 @@ print("Embedding shape:", cls_embedding.shape)
 
 - Trained for only 0.12 passes over the plant corpus (800M / 6.76B tokens) — larger models in this collection see more of the data
 - 8M capacity limits representation richness; the 35M and 150M variants are recommended for downstream fine-tuning
-- Taxonomy filter removes ~15.7% contamination from the UniProt plant keyword subset, but a small fraction of misclassified non-plant sequences may remain in TrEMBL
 
 ---
 
@@ -160,6 +155,6 @@ If you use this model, please cite:
 
 ---
 
-## Training Code
+<!-- ## Training Code
 
-[github.com/Dipayan26/Plant-Protein-BERT](https://github.com/Dipayan26/Plant-Protein-BERT)
+[github.com/Dipayan26/Plant-Protein-BERT](https://github.com/Dipayan26/Plant-Protein-BERT) -->
