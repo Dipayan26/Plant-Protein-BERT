@@ -22,5 +22,18 @@ print(tokenizer.convert_ids_to_tokens(top5.indices.tolist()))
 inputs = tokenizer(sequence, return_tensors="pt")
 with torch.no_grad():
     hidden = model.esm(**inputs).last_hidden_state
+    hidden2 = model.esm(**inputs)
+
+# per amino acid embedding shape: [batch_size, seq_len, hidden_size]
+hidden.shape  # [batch_size, seq_len, hidden_size]
 cls_embedding = hidden[0, 0, :]   # shape: [320]
+
+# per prorein embedding: average across sequence dimension
+# Average across the sequence dimension (dim=1)
+protein_embedding = hidden.mean(dim=1) 
+protein_embedding.shape  # [batch_size, hidden_size]
+# Resulting shape: [1, 320]
+
+
 print("Embedding shape:", cls_embedding.shape)
+print("Protein embedding shape:", protein_embedding.shape)

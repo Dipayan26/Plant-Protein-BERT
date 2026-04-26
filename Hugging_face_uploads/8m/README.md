@@ -18,6 +18,10 @@ pipeline_tag: fill-mask
 
 # PlantPLM-8M
 
+<img src="Plant_PLM_logo.png" alt="Alt Text" width="800">
+
+
+
 **ESM-2 8M parameter model continued-pretrained on Viridiplantae (plant) protein sequences.**
 
 This is a domain-adapted version of [`facebook/esm2_t6_8M_UR50D`](https://huggingface.co/facebook/esm2_t6_8M_UR50D), fine-tuned on a curated subset of UniProt TrEMBL containing only plant-kingdom proteins. The adaptation improves representation quality for plant-specific protein tasks compared to the general-purpose ESM-2 baseline.
