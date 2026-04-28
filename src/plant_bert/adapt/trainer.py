@@ -35,6 +35,9 @@ class ESM2Adapter(pl.LightningModule):
         self.save_hyperparameters(ignore=["model", "tokenizer"])
         self._tokens_seen: int = 0
 
+    def on_train_start(self) -> None:
+        self.model.train()
+
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         outputs = self.model(**batch)
         # count non-padding tokens processed this step
