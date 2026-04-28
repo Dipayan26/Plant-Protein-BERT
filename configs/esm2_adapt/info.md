@@ -285,3 +285,155 @@
   The current 35M run is healthy and will finish in ~2 hours. The loss descent is normal. No restart needed.                 
                                                                                                                              
 ✻ Churned for 7m 2s                           
+
+
+Now I have everything needed for a complete report. Let me compile all findings:                                    
+                                                                                                                      
+  Searched for 2 patterns (ctrl+o to expand)                                              
+                                                                                                                      
+● I now have everything I need. Here is the full diagnostic report:                                                   
+                                                                                                                      
+  ---                                                                                                                 
+  ESM2-150M Adaptation: Training Diagnostic Report                                                                    
+                                                                                                                      
+  Date: Apr 28, 2026 | Elapsed: 32.4 hours | Run ID: uw57p58h                                                         
+                                                                                                                      
+  ---                                                                                                                 
+  Current State (Live)                                                                                                
+                                                                                                                      
+  ┌───────────────────────────┬────────────────────────────────────────┐                                              
+  │          Metric           │                 Value                  │                                              
+  ├───────────────────────────┼────────────────────────────────────────┤                                              
+  │ Progress bar              │ 14,000 / 105,000 steps (micro-batches) │                                              
+  ├───────────────────────────┼────────────────────────────────────────┤                                              
+  │ Optimizer steps completed │ ~1,750 (micro-batches ÷ 8 accum)       │                                              
+  ├───────────────────────────┼────────────────────────────────────────┤                                              
+  │ Tokens seen               │ 34M / 1.6B budget (2.1%)               │                                              
+  ├───────────────────────────┼────────────────────────────────────────┤                                              
+  │ Train MLM loss            │ 1.841 (down from 1.946 at start)       │               
+  ├───────────────────────────┼────────────────────────────────────────┤                                              
+  │ Val MLM loss              │ 2.048                                  │               
+  ├───────────────────────────┼────────────────────────────────────────┤                                              
+  │ GPU utilization           │ 99%, 162W / 170W, 75°C                 │               
+  ├───────────────────────────┼────────────────────────────────────────┤                                              
+  │ VRAM                      │ 8,896 MB / 12,288 MB                   │               
+  ├───────────────────────────┼────────────────────────────────────────┤                                              
+  │ tqdm ETA shown            │ 11h 22m ← this is wrong                │               
+  └───────────────────────────┴────────────────────────────────────────┘                                              
+                                                                                       
+  ---                                                                                                                 
+  Root Cause: Catastrophic Validation Overhead                                         
+                                              
+  This is the core problem. Every 2,000 micro-batches (val_check_interval: 2000), Lightning runs a full validation 
+  epoch over your 996,920-sequence val set (5% of 19.9M sequences = 124,615 batches at batch_size: 8). There is no    
+  limit_val_batches set.
+                                                                                                                      
+  Timing proof from checkpoints:                                                                                      
+  
+  ┌───────────────┬───────────────┬───────────────┬─────────┬────────────────────┬───────────────────────────────┐    
+  │    Period     │  Optimizer    │ Micro-batches │  Wall   │  Training Portion  │      Validation Portion       │
+  │               │     Steps     │               │  Time   │                    │                               │    
+  ├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
+  │ Start → step  │ 1,250         │ 10,000        │ 25.2h   │ ~25 min (5 train   │ ~24.9h (5 validations × ~4.8h │
+  │ 1250          │               │               │         │ cycles)            │  each)                        │    
+  ├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
+  │ Step 1250 →   │ 250           │ 2,000         │ 5h 3m   │ ~15 min            │ 4h 48m (1 validation, HDF5    │    
+  │ 1500          │               │               │         │                    │ cold cache)                   │    
+  ├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
+  │ Step 1500 →   │ ~250          │ 2,000         │ 2h 9m   │ ~15 min            │ ~1h 54m (cache warming up)    │    
+  │ ~1750         │               │               │         │                    │                               │    
+  └───────────────┴───────────────┴───────────────┴─────────┴────────────────────┴───────────────────────────────┘
+                                                                                                                      
+  Each training cycle (2,000 micro-batches): ~15 minutes                               
+  Each validation pass (124,615 batches): ~2–5 hours (HDF5 page-cache was cold, warming now)
+                                                                                                                      
+  Ratio: ~8–19× more time in validation than in training.                                                             
+                                                                                                                      
+  ---                                                                                                                 
+  tqdm ETA Is Misleading                                                               
+                        
+  tqdm measures only training batch speed (2.22 it/s). It pauses during validation and does not add that time to the
+  ETA. So "11h 22m remaining" means "11h 22m of pure training steps" — it ignores all future validation time.         
+  
+  Actual ETA estimate:                                                                                                
+                                                                                       
+  - Remaining tokens: ~1.566B (out of 1.6B budget)                                                                    
+  - Remaining micro-batches: ~642,000
+  - Remaining training time at 2.22/s: ~80 hours                                                                      
+  - Remaining validations: ~321 validation runs                                                                       
+  - Validation time per run (cache still warming): 30 min–2 hours each
+  - Best case (cache fully warm, ~30 min/val): 80h + 321×0.5h = ~240 hours (10 days)                                  
+  - Worst case (stays slow, ~2h/val): 80h + 321×2h = ~722 hours (30 days)                                             
+                                                                                                                      
+  Realistic estimate: 10–15 more days, not 11 hours.                                                                  
+                                                                                                                      
+  ---                                                                                                                 
+  Secondary Issues                                                                     
+                  
+  1. Output log is bloated (392 MB, growing ~12 MB/hour)
+  WandB is capturing tqdm's ANSI progress bar output that refreshes every second. The file has 2.1M lines. Over 10    
+  more days this becomes 3–4 GB. No training impact, but wastes disk.                                                 
+  /wandb/run-20260427_032757-uw57p58h/files/output.log  392 MB                                                        
+  Disk is fine (469 GB free), but the file is junk data.                                                              
+                                                                                                                      
+  2. WandB cloud sync is failing (DNS errors)                                                                         
+  dial tcp: lookup api.wandb.ai ... i/o timeout                                                                       
+  Occurred at Apr 27 09:29, 14:31, and Apr 27 23:34. Metrics ARE being logged locally; you can sync later with:       
+  wandb sync wandb/run-20260427_032757-uw57p58h                                                                       
+                                                                                                                      
+  3. Loss is healthy but early                                                                                        
+  - Train: 1.946 → 1.841 (improving, ~5% drop)                                                                        
+  - ESM2-150M on general proteins typically reaches ~1.6–1.7 MLM loss                                                 
+  - You're at 2.1% of the token budget, so the model has barely adapted yet            
+                                                                                                                      
+  ---                                                                                                                 
+  The Fix                                                                                                             
+                                                                                                                      
+  Add limit_val_batches: 500 to configs/esm2_adapt/training/adapt_150m.yaml:           
+                                                                                                                      
+  trainer:
+    max_steps: 105000                                                                                                 
+    val_check_interval: 2000                                                           
+    log_every_n_steps: 50                                                                                             
+    gradient_clip_val: 1.0                                                             
+    precision: 16-mixed                                                                                               
+    accumulate_grad_batches: 8
+    devices: 1                                                                                                        
+    strategy: auto                                                                                                    
+    limit_val_batches: 500     # ← add this line
+                                                                                                                      
+  This caps each validation at 500 batches (4,000 sequences, 1.6 MB of validation), enough to track MLM loss trends.  
+  Each val run becomes ~3–4 minutes instead of 2–5 hours.                                                             
+                                                                                                                      
+  With this fix: Estimated total = ~80h training + 321 × 4min val = ~101 hours (~4.2 days)                            
+  
+  ---                                                                                                                 
+  Recommendation: Stop, Fix, Resume                                                    
+                                                                                                                      
+  You can resume from the saved checkpoint instead of starting from scratch:
+                                                                                                                      
+  # Kill current process (Ctrl+C in the terminal running it)                           
+                                                                                                                      
+  # Then edit the config to add limit_val_batches: 500                                                                
+                                                                                                                      
+  # Resume (Lightning auto-resumes from last.ckpt in the checkpoint dir)                                              
+  python scripts/adapt_esm2.py +experiment=adapt_esm2_150m \                           
+      training.trainer.limit_val_batches=500                                                                          
+                                                                                                                      
+  Check whether the training script supports ckpt_path resume — if not, you can pass it via Hydra override. You've    
+  only consumed 2.1% of the token budget so there's minimal loss from this restart.                                   
+                                                                                                                      
+  ---                                                                                  
+  Summary
+         
+  The training is not broken — GPU is fully utilized, loss is decreasing, checkpoints are saving. The sole problem is
+  that val_check_interval: 2000 with no limit_val_batches causes full passes over a 996K-sequence validation set every
+   15 minutes of training. This single config omission turns a ~4-day run into a ~15-day run. Add limit_val_batches: 
+  500 and either restart (with checkpoint resume) or kill and relaunch.                                               
+                                                                                       
+✻ Worked for 12m 2s                    
+                                                                                          
+※ recap: Training ESM2-150M on plant proteins is running but will take 10–15 more days instead of the expected few    
+  days due to a config issue. Add `limit_val_batches: 500` to the trainer config and restart from the saved           
+  checkpoint. (disable recaps in /config)                                                                             
+                                                        
