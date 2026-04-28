@@ -135,3 +135,153 @@
   is designed to do.                                                                                   
                   
 ✻ Baked for 35s                 
+
+
+
+● I have all the data. Here's the full diagnostic report:                        
+                                                                                          
+  ---
+  #### ESM-2 35M Adaptation Training Report                                                                                       
+                                      
+  Date: Apr 28, 2026 | Run ID: bepwjjt4 | GPU: RTX 3060 12GB                                                                 
+                                                                                                                             
+  ---
+  Current Status                                                                                                             
+                  
+  ┌────────────────────┬──────────────────────────────────────────┐
+  │       Metric       │                  Value                   │
+  ├────────────────────┼──────────────────────────────────────────┤
+  │ Progress           │ 40,000 / 55,000 steps (72.7%)            │
+  ├────────────────────┼──────────────────────────────────────────┤
+  │ Elapsed            │ 34 hours                                 │                                                          
+  ├────────────────────┼──────────────────────────────────────────┤                                                          
+  │ ETA                │ ~2:12 (finishes ~2 PM today)             │                                                          
+  ├────────────────────┼──────────────────────────────────────────┤                                                          
+  │ Speed (training)   │ 1.89 it/s                                │ 
+  ├────────────────────┼──────────────────────────────────────────┤                                                          
+  │ Speed (validation) │ 6.13 it/s                                │
+  ├────────────────────┼──────────────────────────────────────────┤                                                          
+  │ GPU Utilization    │ 100%, 80°C, 169W/170W (at thermal limit) │
+  ├────────────────────┼──────────────────────────────────────────┤                                                          
+  │ GPU Memory         │ 7,205 MiB / 12,288 MiB used              │
+  └────────────────────┴──────────────────────────────────────────┘                                                          
+                  
+  Training is alive and will complete today. You don't need to restart it.                                                   
+                  
+  ---                                                                                                                        
+  Root Cause: Validation is Eating 83% of Wall Time
+                                                                                                                             
+  This is the main problem. The config uses val_split: 0.05 on a 19.9M-sequence dataset:
+                                                                                                                             
+  Total sequences:       19,938,415
+  Val set (5%):             996,920  →  31,153 batches at bs=32                                                              
+  Each validation pass:  31,153 / 6.13 it/s  =  ~85 minutes                                                                  
+  Validation frequency:  every 2,000 steps  (27 passes total)                                                                
+                                                                                                                             
+  Time breakdown for the full 55K-step run:                                                                                  
+                                                                                                                             
+  ┌───────────────────────────────────┬──────────────┐                                                                       
+  │             Component             │     Time     │
+  ├───────────────────────────────────┼──────────────┤
+  │ Actual training compute           │ ~7.8 hours   │
+  ├───────────────────────────────────┼──────────────┤
+  │ Validation overhead (27 × 85 min) │ ~38 hours    │                                                                       
+  ├───────────────────────────────────┼──────────────┤                                                                       
+  │ Total wall time                   │ ~36–37 hours │                                                                       
+  └───────────────────────────────────┴──────────────┘                                                                       
+                  
+  The config comment says "~8 hours" — that estimate only counted training steps. It missed that validation on a 1M-sequence 
+  val set at this GPU's speed would dominate.
+                                                                                                                             
+  ---             
+  Loss Trajectory (from output log samples)
+                                           
+  ┌────────┬────────────┬──────────┬─────────────┐
+  │  Step  │ Train Loss │ Val Loss │ Tokens Seen │                                                                           
+  ├────────┼────────────┼──────────┼─────────────┤
+  │ 6,000  │ 2.198      │ 2.218    │ 0.059B      │                                                                           
+  ├────────┼────────────┼──────────┼─────────────┤
+  │ 10,000 │ 2.186      │ —        │ 0.097B      │
+  ├────────┼────────────┼──────────┼─────────────┤                                                                           
+  │ 14,000 │ 2.248      │ —        │ 0.136B      │
+  ├────────┼────────────┼──────────┼─────────────┤                                                                           
+  │ 18,000 │ 2.149      │ 2.149    │ 0.175B      │
+  ├────────┼────────────┼──────────┼─────────────┤                                                                           
+  │ 24,000 │ 2.130      │ —        │ 0.234B      │
+  ├────────┼────────────┼──────────┼─────────────┤                                                                           
+  │ 30,000 │ 2.115      │ —        │ 0.292B      │
+  ├────────┼────────────┼──────────┼─────────────┤
+  │ 36,000 │ ~2.00      │ —        │ 0.351B      │
+  ├────────┼────────────┼──────────┼─────────────┤                                                                           
+  │ 40,000 │ 2.121      │ 2.096    │ 0.390B      │
+  └────────┴────────────┴──────────┴─────────────┘                                                                           
+                  
+  Loss is declining steadily (~0.12 decrease). The small upward bumps (e.g. step 14K) are per-batch noise, not divergence.   
+  This is normal continued pretraining behavior on a pretrained checkpoint.
+                                                                                                                             
+  ---             
+  Issues Found
+              
+  1. [CRITICAL] limit_val_batches is missing
+                                                                                                                             
+  The 85-minute validation passes are entirely avoidable. Add this to adapt_35m.yaml for future runs:                        
+                                                                                                                             
+  trainer:                                                                                                                   
+    limit_val_batches: 500   # ~81 sec per validation vs 85 minutes
+                                                                                                                             
+  500 batches × 32 = 16,000 sequences — statistically representative. This alone would cut total wall time from ~36 hours to 
+  ~8 hours.                                                                                                                  
+                                                                                                                             
+  2. [WARNING] 219 ESM-2 submodules stuck in eval mode                                                                       
+  
+  The startup log printed:                                                                                                   
+  Found 219 module(s) in eval mode at the start of training.
+  Modules in train mode: 1 / Modules in eval mode: 219      
+                                                                                                                             
+  EsmForMaskedLM.from_pretrained() loads in eval mode by default. Only the outermost PlantESM2 wrapper got flipped to train
+  mode — all 219 inner transformer submodules (attention layers, FFN, LayerNorm) remain in eval mode. Dropout is disabled    
+  during this entire training run. The model IS learning (loss is falling), but without dropout regularization, which matters
+   at this scale.                                                                                                            
+                  
+  Fix — add to trainer.py:
+
+  def on_train_start(self) -> None:
+      self.model.train()                                                                                                     
+  
+  3. [WARNING] Checkpoint callback appears stalled                                                                           
+                  
+  last.ckpt hasn't been updated since Apr 28 10:19 (step 19,000), even though training is at step 40,000. The two saved      
+  checkpoints are step=18000 (val_loss=2.149) and step=19000. The current val_loss of 2.096 is better, so a new best
+  checkpoint should have been written but wasn't. This suggests either:                                                      
+  - A checkpoint callback bug when save_top_k=2 and save_last=True interact
+  - The validation metric at committed epoch boundaries differs from the progress-bar value                                  
+                                                                                           
+  For the current run this is low-urgency (training will finish), but for 150M you'll want this working reliably.            
+                                                                                                                             
+  4. [INFO] Token budget won't be the stopping criterion                                                                     
+                                                                                                                             
+  At 9,750 tokens/optimizer-step, 55,000 steps processes only ~536M tokens, not the 800M budget. TokenBudgetCallback will    
+  never fire — max_steps=55000 stops training first. The budget comment in the config is based on avg_seq≈250AA, but the
+  actual dataset average is higher (~390M tokens / 40K steps = ~9,750 tok/step ÷ 32 batch = ~305 tokens/sequence including   
+  padding). No action needed, just a calibration note.
+
+  5. [INFO] Competing GPU process
+
+  PID 1680 (attnseqppi) is consuming 148MB GPU memory. Not causing the slowdown but worth knowing if you hit OOM running     
+  150M.
+                                                                                                                             
+  ---             
+  For the 150M Run — Fix These Before Starting
+                                                                                                                             
+  # configs/esm2_adapt/training/adapt_150m.yaml
+  trainer:                                                                                                                   
+    limit_val_batches: 500   # ADD THIS — critical                                                                           
+    val_check_interval: 5000 # INCREASE from 2000 (fewer validation interruptions)                                           
+                                                                                                                             
+  # src/plant_bert/adapt/trainer.py — add to ESM2Adapter
+  def on_train_start(self) -> None:                                                                                          
+      self.model.train()      # ensure all 219 submodules are in train mode
+                                                                                                                             
+  The current 35M run is healthy and will finish in ~2 hours. The loss descent is normal. No restart needed.                 
+                                                                                                                             
+✻ Churned for 7m 2s                           
