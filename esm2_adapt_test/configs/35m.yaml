@@ -1,0 +1,4 @@
+model_name: esm2_35m
+vanilla_hub: facebook/esm2_t12_35M_UR50D
+adapted_path: checkpoints/esm2_adapt/35m/hf_model
+max_proteins: 2000

@@ -1,0 +1,32 @@
+{
+  "model": "esm2_35m",
+  "date": "2026-04-29",
+  "vanilla_hub": "facebook/esm2_t12_35M_UR50D",
+  "adapted_path": "checkpoints/esm2_adapt/35m/hf_model",
+  "localization": {
+    "vanilla": {
+      "accuracy": 0.9187,
+      "macro_f1": 0.9257,
+      "n_test": 332,
+      "n_classes": 9
+    },
+    "adapted": {
+      "accuracy": 0.9428,
+      "macro_f1": 0.9486,
+      "n_test": 332,
+      "n_classes": 9
+    }
+  },
+  "go_terms": {
+    "vanilla": {
+      "macro_auroc": 0.9426,
+      "n_go_terms_evaluated": 50,
+      "n_test": 396
+    },
+    "adapted": {
+      "macro_auroc": 0.9482,
+      "n_go_terms_evaluated": 50,
+      "n_test": 396
+    }
+  }
+}
