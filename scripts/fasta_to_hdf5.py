@@ -1,4 +1,4 @@
-"""fasta_to_hdf5.py — Convert a clean FASTA file to the HDF5 format used by StreamingProteinDataset.
+ """fasta_to_hdf5.py — Convert a clean FASTA file to the HDF5 format used by StreamingProteinDataset.
 
 Use this after running filter_viridiplantae.py to build the training index directly
 from the already-filtered FASTA, without re-parsing the 18 GB DAT.gz.
