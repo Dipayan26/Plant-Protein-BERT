@@ -1,0 +1,25 @@
+# @package _global_
+# PlantESM2-650M: full-parameter domain-adaptive pretraining on a single CUDA GPU
+# Usage: python scripts/adapt_esm2.py +experiment=adapt_esm2_650m_full
+#
+# Contrast with the other 650M experiments:
+#   adapt_esm2_650m      → LoRA r=16, ~4M trainable params, RTX 3060 12 GB
+#   adapt_esm2_650m_full → all 650M params trainable, single GPU (24 GB+: 3090/4090/A100)
+#   adapt_esm2_650m_tpu  → all 650M params trainable, Cloud TPU v4-32 (32 chips)
+#
+# Full-parameter 650M needs ~10.4 GB static (weights + grads + AdamW states)
+# before activations, so it will NOT fit on 12 GB VRAM — use a 24 GB+ card.
+#
+# After training, save_hf_checkpoint() saves a standard EsmForMaskedLM at
+# checkpoints/esm2_adapt/650m_full/hf_model — no PEFT dependency at inference.
+
+defaults:
+  - override /model: esm2_650m_full
+  - override /training: adapt_650m_full
+
+wandb:
+  name: esm2-650m-plant-adapt-full-gpu
+  tags: [esm2, 650m, plant, continued-pretraining, full-param, gpu]
+
+data:
+  batch_size: 2   # effective batch = 2 × accum=32 = 64 sequences/update

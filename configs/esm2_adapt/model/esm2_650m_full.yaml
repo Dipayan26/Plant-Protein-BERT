@@ -1,0 +1,15 @@
+# @package _global_.model
+# ESM-2 650M — full-parameter training (no LoRA)
+# Intended for TPU where optimizer states are affordable across 32+ chips.
+# Architecture: 33 layers, hidden=1280, heads=20, ffn=5120
+#
+# Memory per TPU chip (v4, 32 GB HBM):
+#   bf16 weights:       650M × 2B = 1.3 GB
+#   bf16 gradients:     650M × 2B = 1.3 GB
+#   fp32 AdamW states:  650M × 12B = 7.8 GB
+#   Total static:       ~10.4 GB — fits in 32 GB HBM with gradient checkpointing
+_target_: plant_bert.adapt.model.PlantESM2
+
+hub_name: facebook/esm2_t33_650M_UR50D
+gradient_checkpointing: true
+# no lora key → PlantESM2.__init__ receives lora=None → full-parameter training

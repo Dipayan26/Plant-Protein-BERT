@@ -1,0 +1,43 @@
+# @package _global_.training
+# Full-parameter ESM-2 650M on Cloud TPU v4-32 (32 chips, 8 hosts × 4 chips each)
+#
+# Effective batch: 8 hosts × 4 chips × batch_size=8 × accum=2 = 512 sequences/update
+# Token budget: 1.6B tokens / (512 seq × ~305 AA avg) ≈ 10K updates
+#
+# LR: 5e-5 — full fine-tuning LR (base weights already trained; LoRA used 2e-4
+#   because its adapters are randomly initialised and tolerate a higher LR)
+_target_: plant_bert.adapt.trainer.ESM2Adapter
+
+mlm_probability: 0.15
+
+token_budget: 1_600_000_000  # 1.6B tokens — same budget as LoRA run
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 5.0e-5
+  betas: [0.9, 0.98]
+  weight_decay: 0.01
+  eps: 1.0e-8
+
+scheduler:
+  _target_: transformers.get_linear_schedule_with_warmup
+  num_warmup_steps: 1000
+  num_training_steps: 40000  # ceiling; TokenBudgetCallback stops first
+
+trainer:
+  accelerator: tpu
+  devices: 4              # chips per host — v4-32 = 8 hosts × 4 chips each
+  strategy: xla           # PyTorch/XLA data-parallel (Lightning XLAStrategy)
+  max_steps: 40000
+  val_check_interval: 1000
+  log_every_n_steps: 50
+  gradient_clip_val: 1.0
+  precision: bf16-mixed   # TPU only supports bfloat16, not fp16
+  accumulate_grad_batches: 2
+
+checkpoint:
+  monitor: val/mlm_loss
+  mode: min
+  save_top_k: 2
+  save_last: true
+  dirpath: ${hydra:runtime.cwd}/checkpoints/esm2_adapt/650m_tpu

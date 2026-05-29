@@ -437,3 +437,221 @@ Now I have everything needed for a complete report. Let me compile all findings:
   days due to a config issue. Add `limit_val_batches: 500` to the trainer config and restart from the saved           
   checkpoint. (disable recaps in /config)                                                                             
                                                         
+===========================
+===========================
+
+
+❯ first i have to train the models first , @Hugging_face_uploads for these models how     
+  much data i used for continual pre training ?is it emough ? what should iseal check     
+  these also @configs/esm2_adapt/training for training token a passes , what shoud  be    
+  the ideal tokens budget for each parameter models?                                      
+  ⎿  Listed directory Hugging_face_uploads/
+  ⎿  Listed directory configs/esm2_adapt/training/
+  
+● I'll read the model cards (for tokens actually used) and all the training configs (for
+  token budgets per size), then work out the ideal budgets.
+
+  Read 4 files (ctrl+o to expand)
+
+● Read all the cards and configs. Here's the full picture, including a token-accounting
+  inconsistency you should fix.
+
+  How much data each model actually used
+
+  Total corpus: 19,938,415 sequences ≈ 6.76 B tokens (avg 339 AA).
+
+  ┌───────┬────────┬─────────────────────────┬────────────────────┬────────────────┐
+  │ Model │ Params │     Tokens trained      │ Passes over corpus │ val perplexity │
+  ├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
+  │ 8M    │ 7.5M   │ 800 M                   │ 0.12               │ 9.92           │
+  ├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
+  │ 35M   │ 33.5M  │ 546 M                   │ 0.08               │ 7.96           │
+  ├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
+  │ 150M  │ ~148M  │ 1.6 B (planned, config) │ 0.24               │ — not run      │
+  ├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
+  │ 650M  │ ~650M  │ 1.6 B (planned, config) │ 0.24               │ — not run      │
+  └───────┴────────┴─────────────────────────┴────────────────────┴────────────────┘
+
+  "Is it enough?" — two different questions
+
+  (a) Is the available data enough? Yes, overwhelmingly — you've used <12% of one pass.
+  Data is never your constraint here.
+
+  (b) Are the tokens trained enough? This is the real question, and the answer differs by
+  size. The cleanest lens is the Chinchilla compute-optimal floor (~20 tokens/param) —
+  that's the budget to fully train this many params from scratch. Continued pretraining
+  (DAPT) needs only a fraction of it (empirically ~20–50%) because the model already
+  speaks "protein." Measuring your runs against that:
+
+  ┌───────┬────────────────┬───────────────┬────────┬────────────────────────────────┐
+  │ Model │  Chinchilla    │     You       │  vs    │          DAPT verdict          │
+  │       │  floor (20×)   │ used/planned  │ floor  │                                │
+  ├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
+  │ 8M    │ 150 M          │ 800 M         │ 5.3×   │ Over-provisioned — definitely  │
+  │       │                │               │        │ enough (8M is cheap, fine)     │
+  ├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
+  │ 35M   │ 670 M          │ 546 M         │ 0.82×  │ Comfortably enough for DAPT    │
+  ├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
+  │ 150M  │ 3.0 B          │ 1.6 B         │ 0.53×  │ Good — at/above DAPT target    │
+  ├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
+  │ 650M  │ 13 B           │ 1.6 B         │ 0.12×  │ Under-budgeted — this is the   │
+  │       │                │               │        │ one to increase                │
+  └───────┴────────────────┴───────────────┴────────┴────────────────────────────────┘
+
+  So: your small models are well-trained (even generous); 150M is well-budgeted; your 
+  headline 650M model is the under-trained one. Giving 650M only 2× the 8M budget is too
+  little — bigger models warrant disproportionately more tokens, not the same.
+
+  Recommended ideal token budgets
+
+  ┌───────┬─────────┬─────────────┬───────────┬────────────────────────────────────────┐
+  │ Model │ Current │ Recommended │  Passes   │                  Why                   │
+  ├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
+  │ 8M    │ 800 M   │ 0.8–1.5 B   │ ~0.1–0.2  │ already near saturation;               │
+  │       │         │             │           │ capacity-limited                       │
+  ├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
+  │ 35M   │ 546 M   │ 1–2 B       │ ~0.15–0.3 │ small bump for headroom                │
+  ├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
+  │ 150M  │ 1.6 B   │ 2–4 B       │ ~0.3–0.6  │ benefits from more capacity            │
+  ├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
+  │ 650M  │ 1.6 B   │ 4–8 B       │ ~0.6–1.2  │ needs most tokens to actually move     │
+  │       │         │             │           │ 650M params                            │
+  └───────┴─────────┴─────────────┴───────────┴────────────────────────────────────────┘
+
+  But the budget is a ceiling, not the decision. The real stopping rule (and what the
+  benchmarking brief recommends as an ablation — "gains appear early and stabilize with 
+  more plant tokens") is a token-budget sweep: checkpoint every ~500M tokens and plot (1) 
+  val/mlm_loss and (2) your downstream delta (localization / the new PPI test) vs tokens.
+  Stop when the downstream delta plateaus — that often happens before val loss flattens,
+  so downstream is the arbiter, not perplexity. Don't blindly burn 13B on 650M; watch the
+  curve and stop when it's flat.
+
+  What you should check/fix (config issues I found)
+
+  1. Token accounting is inconsistent. The configs' comments say "≈0.2 passes over the 
+  4B-token plant dataset" but the corpus is 6.76 B tokens (and the cards say so). And
+  comments assume ~16K tokens/step, but the real rate is ~9.9K tokens/step (546M ÷ 55000
+  steps for 35M). Recompute the step targets from the true rate.
+  2. max_steps is cutting runs short of their own token budget. The 35M set token_budget: 
+  800M but max_steps: 55000 — at ~9.9K tokens/step that's only 546M tokens, so it hit the
+  step ceiling, not the budget. Either raise max_steps so the TokenBudgetCallback is the 
+  binding stop, or accept the lower budget knowingly. (This is why 35M trained less than
+  8M despite identical config intent.)
+  3. LR never fully decays. get_linear_schedule_with_warmup(num_training_steps=...) is set
+  to the max_steps ceiling, but training stops earlier at the token budget — so the LR
+  ends mid-decay at a non-trivial value instead of ~0. Set num_training_steps to the
+  actual expected stop step so the model gets its low-LR fine-convergence phase. This
+  measurably improves final quality.
+  4. Add a forgetting check. Full-param continued pretraining on a (relatively narrow)
+  plant corpus can erode general protein knowledge. Hold out a small non-plant validation
+  set and track its perplexity alongside the plant val loss — if non-plant perplexity
+  climbs sharply, lower the LR or stop earlier. Your low LR (1e-5–2e-5) is the right
+  mitigation, but verify it.
+
+  ---
+  Bottom line: Data abundance is fine. Your 8M/35M/150M token budgets are
+  reasonable-to-generous; the 650M is the one that's under-budgeted — plan ~4–8B tokens 
+  for it, driven by a downstream-metric sweep rather than a fixed number. Before any big
+  run, fix the max_steps-vs-token_budget and LR-decay-endpoint issues, and correct the
+  "4B" → 6.76B comment, so the runs actually do what the budget says.
+
+  Want me to patch the four config issues across adapt_8m/35m/150m/650m*.yaml (correct
+  corpus size, make token_budget binding, align LR decay endpoint) and add an optional
+  non-plant forgetting-eval hook?
+
+===========================
+===========================
+
+❯ if i train on runpod with a 24 gb or 40 or 80 gb gpu then what to change to utilise     
+  the total gou and fastest run                                                           
+  
+● For maximizing GPU use and wall-clock speed, the levers are: precision, batch size, 
+  gradient checkpointing, and data-loading — plus you must re-derive
+  max_steps/num_training_steps because a bigger batch changes tokens-per-step. Let me
+  check the model config (that's where gradient checkpointing lives).
+
+  Read 1 file (ctrl+o to expand)
+
+● Read it — gradient_checkpointing: true lives there, sized for your old RTX 3060 12 GB.
+  On a RunPod A100, that setting is now costing you ~20% speed for memory you don't need.
+
+  The core idea
+
+  Your total work is fixed: 3.5 B tokens. "Fastest" = maximize tokens/second (GPU
+  utilization), and a bigger batch also means fewer optimizer steps. The 150M model itself
+  is tiny (~2.4 GB of weights+optimizer state) — on these GPUs, activations from the 
+  batch are the only thing filling VRAM, so you push batch size up until VRAM is ~85–90%
+  full.
+
+  Four things to change (all GPUs)
+
+  1. precision: 16-mixed → bf16-mixed — every RunPod card
+  (3090/4090/A5000/A40/L40S/A100/H100) is Ampere+ and supports bf16. More stable than
+  fp16, same speed.
+  2. accumulate_grad_batches: 8 → 1 — single big GPU doesn't need accumulation; one big
+  forward/backward is faster than 8 small ones.
+  3. data.batch_size: 8 → as large as fits (this replaces the accum; effective batch =
+  batch_size now).
+  4. num_workers: 8 → match the pod's vCPUs (often 16–32 on A100 pods) so data loading
+  never stalls the GPU.
+
+  Per-GPU recommended settings
+
+  Tokens/step ≈ batch_size × 155. Budget = 3.5 B. So bigger batch → far fewer steps.
+  max_steps, num_training_steps, and LR all change with the batch — you can't just change
+  batch size alone:
+
+  ┌─────────────┬────────────────┬────────┬────────┬─────────┬─────────────┬─────────┐
+  │             │ gradient_check │ batch_ │ precis │ tokens/ │ max_steps & │         │
+  │     GPU     │   pointing     │  size  │  ion   │  step   │  num_traini │   lr    │
+  │             │  (model cfg)   │        │        │         │  ng_steps   │         │
+  ├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
+  │ 24 GB       │                │        │ bf16-m │         │ 400,000     │ 1e-5    │
+  │ (3090/4090/ │ keep true      │ 64     │ ixed   │ ~9.9K   │ (unchanged) │ (unchan │
+  │ A5000)      │                │        │        │         │             │ ged)    │
+  ├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
+  │ 40 GB       │                │        │ bf16-m │         │             │         │
+  │ (A100-40/A4 │ false          │ 128    │ ixed   │ ~19.8K  │ 200,000     │ 1.4e-5  │
+  │ 0/L40S)     │                │        │        │         │             │         │
+  ├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
+  │ 80 GB (A100 │ false          │ 256    │ bf16-m │ ~39.7K  │ 100,000     │ 2e-5    │
+  │ -80/H100)   │                │        │ ixed   │         │             │         │
+  └─────────────┴────────────────┴────────┴────────┴─────────┴─────────────┴─────────┘
+
+  - LR scaling: I scaled by √(batch ratio) from your 1e-5@64 baseline (sqrt rule — the
+  safe choice for continued pretraining; linear scaling risks catastrophic forgetting at
+  this stage).
+  - Start conservative, then push: these batch sizes are safe starting points. Watch
+  nvidia-smi; if VRAM sits below ~85%, bump batch higher (and re-derive steps: steps ≈ 
+  3.5e9 / (batch×155)).
+  - For 24 GB: try gradient_checkpointing: false + batch_size: 32 first; if it fits
+  comfortably you keep full speed. If OOM, revert to true + 64.
+
+  Two optional code-level speedups (bigger wins on A100/H100)
+
+  These need a one-line change in scripts/adapt_esm2.py / the model loader, not config:
+  - TF32 matmul: torch.set_float32_matmul_precision("high") — free ~1.3–1.5× on Ampere+.
+  - SDPA/FlashAttention: load ESM with attn_implementation="sdpa" — faster attention +
+  less memory, lets you raise batch further. (HF ESM may default to eager.)
+
+  If RunPod gives you multiple GPUs (the real fastest path)
+
+  A 2–8× A100 pod scales near-linearly. Set in the training config:
+  trainer:
+    devices: -1          # use all GPUs
+    strategy: ddp
+  Effective batch = batch_size × num_gpus → scale LR up and divide step counts by
+  num_gpus.
+
+  ---
+  Bottom line for fastest single-GPU run: get an 80 GB A100/H100, set
+  gradient_checkpointing: false, batch_size: 256, accum: 1, bf16-mixed,
+  max_steps/num_training_steps 100000, lr: 2e-5, num_workers: 16, plus TF32 + SDPA. That
+  finishes 3.5 B tokens in ~88K steps instead of ~354K.
+
+  Which GPU will you rent? Tell me and I'll apply the exact edits to adapt_150m.yaml +
+  esm2_150m.yaml (+ the experiment's batch_size), and add the TF32/SDPA lines to the
+  training script if you want them.
+
+
+===========================

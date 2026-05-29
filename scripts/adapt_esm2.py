@@ -42,7 +42,8 @@ from plant_bert.utils import seed_everything, setup_logger
 
 @hydra.main(config_path="../configs/esm2_adapt", config_name="config", version_base="1.3")
 def main(cfg: DictConfig) -> None:
-    torch.set_float32_matmul_precision("high")
+    if torch.cuda.is_available():
+        torch.set_float32_matmul_precision("high")
     setup_logger(cfg)
     seed_everything(cfg.seed)
 
@@ -102,10 +103,16 @@ def main(cfg: DictConfig) -> None:
     trainer.fit(trainer_module, datamodule=datamodule)
 
     # Export adapted weights in HuggingFace format alongside the Lightning checkpoint.
-    # This lets downstream code load the model with EsmForMaskedLM.from_pretrained().
-    hf_out = cfg.training.checkpoint.dirpath + "/hf_model"
-    model.save_hf_checkpoint(hf_out)
+    # Guard with is_global_zero: on TPU pods all workers reach here, only rank-0 writes.
+    # On single GPU is_global_zero is always True, so LoRA runs are unaffected.
+    if trainer.is_global_zero:
+        hf_out = cfg.training.checkpoint.dirpath + "/hf_model"
+        model.save_hf_checkpoint(hf_out)
 
 
 if __name__ == "__main__":
     main()
+
+
+
+

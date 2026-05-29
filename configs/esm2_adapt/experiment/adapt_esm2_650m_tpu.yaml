@@ -1,0 +1,21 @@
+# @package _global_
+# PlantESM2-650M: full-parameter domain-adaptive pretraining on Cloud TPU v4-32
+# Usage: python scripts/adapt_esm2.py +experiment=adapt_esm2_650m_tpu
+#
+# Contrast with adapt_esm2_650m (LoRA, single GPU):
+#   adapt_esm2_650m     → LoRA r=16, ~4M trainable params, RTX 3060 12 GB
+#   adapt_esm2_650m_tpu → all 650M params trainable, v4-32 (32 chips, 32 GB HBM each)
+#
+# After training, save_hf_checkpoint() saves a standard EsmForMaskedLM.
+# Both checkpoints are interchangeable at inference and fine-tuning.
+
+defaults:
+  - override /model: esm2_650m_full
+  - override /training: adapt_650m_tpu
+
+wandb:
+  name: esm2-650m-plant-adapt-full-tpu
+  tags: [esm2, 650m, plant, continued-pretraining, full-param, tpu]
+
+data:
+  batch_size: 8   # per chip; global batch = 8 hosts × 4 chips × 8 × accum=2 = 512

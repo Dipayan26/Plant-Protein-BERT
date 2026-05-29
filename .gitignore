@@ -227,3 +227,5 @@ Papers
 checkpoints
 wandb
 *.safetensors
+
+memory/

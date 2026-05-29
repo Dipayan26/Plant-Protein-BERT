@@ -1,0 +1,53 @@
+# @package _global_.training
+# Full-parameter ESM-2 650M continued pretraining on a single CUDA GPU
+#
+# VRAM (full-param, no LoRA), with gradient checkpointing:
+#   bf16 weights:       650M × 2B  = 1.3 GB
+#   bf16 gradients:     650M × 2B  = 1.3 GB
+#   fp32 AdamW states:  650M × 12B = 7.8 GB
+#   Total static:       ~10.4 GB + activations
+#   → Does NOT fit on RTX 3060 12 GB; requires a 24 GB+ card (3090/4090/A100).
+#     Use the LoRA config (adapt_650m) for 12 GB cards.
+#
+# Effective batch: batch_size=2 × accum=32 = 64 sequences/update
+#   ~64 seq × ~305 AA avg ≈ 19.5K tokens/update
+#   1.6B / 19.5K ≈ 82K steps  (matches the LoRA GPU run's token budget)
+#
+# LR: 5e-5 — full fine-tuning LR (base weights already trained; the LoRA run
+#   used 2e-4 because its adapters are randomly initialised and tolerate a
+#   higher LR).
+_target_: plant_bert.adapt.trainer.ESM2Adapter
+
+mlm_probability: 0.15
+
+token_budget: 1_600_000_000   # 1.6B tokens — same budget as the LoRA run
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 5.0e-5
+  betas: [0.9, 0.98]
+  weight_decay: 0.01
+  eps: 1.0e-8
+
+scheduler:
+  _target_: transformers.get_linear_schedule_with_warmup
+  num_warmup_steps: 1000
+  num_training_steps: 87000   # ceiling; TokenBudgetCallback stops first
+
+trainer:
+  accelerator: gpu
+  devices: 1
+  strategy: auto
+  max_steps: 87000
+  val_check_interval: 2000
+  log_every_n_steps: 50
+  gradient_clip_val: 1.0
+  precision: bf16-mixed       # bf16 for full-param stability; needs Ampere+ (3090/4090/A100)
+  accumulate_grad_batches: 32
+
+checkpoint:
+  monitor: val/mlm_loss
+  mode: min
+  save_top_k: 2
+  save_last: true
+  dirpath: ${hydra:runtime.cwd}/checkpoints/esm2_adapt/650m_full
