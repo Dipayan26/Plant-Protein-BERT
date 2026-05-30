@@ -7,8 +7,15 @@
 #   2. Find out which GPU you got:   nvidia-smi --query-gpu=name,memory.total --format=csv
 #   3. UNCOMMENT exactly ONE block below that matches your GPU.
 #      Leave the others commented out.
+
+
+
+
 #   4. Run:   bash scripts/train_gpu_configs_150.sh
 #
+
+
+
 # WHY THE NUMBERS CHANGE PER GPU:
 #   Total work is fixed by token_budget (150M = 3.5B tokens). "Fastest" = keep the
 #   GPU ~85-90% full so throughput (tokens/sec) is maximal:
@@ -41,8 +48,8 @@ NW=$(nproc)
 
 # ── 150M · 24 GB (RTX 3090 / 4090 / A5000) ─────────────  ACTIVE BY DEFAULT ──────
 python scripts/adapt_esm2.py +experiment=adapt_esm2_150m \
-    model.gradient_checkpointing=true \
-    data.batch_size=64 \
+    model.gradient_checkpointing=false \
+    data.batch_size=128 \
     data.num_workers=${NW} \
     training.trainer.precision=${PREC} \
     training.trainer.accumulate_grad_batches=1 \

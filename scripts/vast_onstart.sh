@@ -12,6 +12,7 @@
 #   HF_TOKEN=hf_xxx WANDB_API_KEY=xxx bash scripts/vast_onstart.sh
 set -euo pipefail
 
+
 # # ──────────────────────────────────────────────────────────────────────────────
 # # TOKENS
 # # ──────────────────────────────────────────────────────────────────────────────
@@ -28,8 +29,10 @@ set -euo pipefail
 
 
 # Your full sequence on the cloud box:
+# cd /workspace
 # export HF_TOKEN=hf_xxx
 # export WANDB_API_KEY=xxx
+# https://github.com/Dipayan26/Plant-Protein-BERT.git
 # bash scripts/vast_onstart.sh
 # # ──────────────────────────────────────────────────────────────────────────────
 
