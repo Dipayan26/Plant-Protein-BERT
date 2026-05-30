@@ -7,7 +7,7 @@
 #   2. Find out which GPU you got:   nvidia-smi --query-gpu=name,memory.total --format=csv
 #   3. UNCOMMENT exactly ONE block below that matches your GPU.
 #      Leave the others commented out.
-#   4. Run:   bash scripts/train_gpu_configs.sh
+#   4. Run:   bash scripts/train_gpu_configs_150.sh
 #
 # WHY THE NUMBERS CHANGE PER GPU:
 #   Total work is fixed by token_budget (150M = 3.5B tokens). "Fastest" = keep the
@@ -76,7 +76,7 @@ python scripts/adapt_esm2.py +experiment=adapt_esm2_150m \
 #     # eff-batch 256 → ~39.7K tok/step → ~88K real steps. lr = 1e-5×2.
 
 # ── 150M · 96 GB (RTX PRO 6000 Blackwell / B200) ─────────────────────────────────
-#   ⚠️ BLACKWELL COMPATIBILITY: sm_120 GPUs need CUDA ≥12.8 + torch ≥2.7. The vast
+#    BLACKWELL COMPATIBILITY: sm_120 GPUs need CUDA ≥12.8 + torch ≥2.7. The vast
 #   image here ships torch 2.5.1 / cu124, which has NO Blackwell kernels — training
 #   will error ("no kernel image") or fall back to painfully slow. BEFORE using this
 #   block, upgrade inside the box:
