@@ -1,0 +1,58 @@
+# requirements.vast.txt — layered on top of a PyTorch CUDA base image.
+#
+# torch / torchvision are PROVIDED BY THE BASE IMAGE (pytorch:2.5.1-cuda12.4)
+# — do not list them here, or pip will swap the CUDA build and break the GPU stack.
+#
+# This CORE list mirrors the packages actually present in the working `plantbert`
+# conda env on the dev machine (torch 2.5.1, transformers 5.1.0, lightning 2.6.x).
+# Unpinned by choice — pip resolves latest-compatible at build time.
+
+# ── Project core (required by plant_bert; these were missing from requirements.in) ──
+hydra-core
+omegaconf
+pytorch-lightning
+h5py
+
+# ── Hugging Face ecosystem ─────────────────────────────────────────────────────
+transformers
+tokenizers
+datasets
+accelerate
+safetensors
+sentencepiece
+# Fast dataset pull (Xet) for `hf download dipayan26/plant-trembl-h5`
+huggingface_hub[hf_xet]
+
+# ── Scientific / data ──────────────────────────────────────────────────────────
+numpy
+pandas
+matplotlib
+scikit-learn
+scipy
+
+# ── Bioinformatics ─────────────────────────────────────────────────────────────
+biopython
+
+# ── Experiment tracking ────────────────────────────────────────────────────────
+wandb
+
+# ── Training / misc utilities ──────────────────────────────────────────────────
+torchmetrics
+tqdm
+requests
+pyyaml
+
+# ────────────────────────────────────────────────────────────────────────────────
+# OPTIONAL EXTRAS — NOT in the working `plantbert` env and NOT imported by the
+# project. Only needed for future downstream finetuning (TRL/PEFT/quantization)
+# or extra tooling. `bitsandbytes` can fail to build on a CUDA mismatch, which is
+# why these are kept separate from the core install above. Uncomment as needed.
+# ────────────────────────────────────────────────────────────────────────────────
+# peft
+# bitsandbytes
+# trl
+# einops
+# seaborn
+# tensorboard
+# tiktoken
+# python-dotenv

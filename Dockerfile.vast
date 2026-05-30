@@ -1,0 +1,41 @@
+# Dockerfile for vast.ai — Plant-Protein-BERT
+# Base provides torch 2.5.1 + CUDA 12.4 (matches what you ran on the vast box).
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
+
+# Make Python logs flush immediately, and turn on fast HF (Xet) transfers.
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_XET_HIGH_PERFORMANCE=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# System deps:
+#   git            — clone this repo at runtime
+#   openssh-server — vast.ai's SSH launch mode needs an sshd in the image
+#   build-essential— compiles bitsandbytes / native wheels
+#   wget curl      — general fetching
+#   htop nvtop      — GPU/CPU monitoring (you reached for nvtop on the box)
+RUN apt-get update --yes && \
+    apt-get install --yes --no-install-recommends \
+        git \
+        openssh-server \
+        build-essential \
+        wget \
+        curl \
+        htop \
+        nvtop \
+        ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# vast.ai's persistent working area.
+WORKDIR /workspace
+
+# Install Python deps first (cached layer — only re-runs when this file changes).
+COPY requirements.vast.txt /tmp/requirements.vast.txt
+RUN pip install --upgrade pip && \
+    pip install -r /tmp/requirements.vast.txt
+
+# NOTE: the project source is NOT baked in. Clone + editable-install at runtime
+# (see the on-start script below) so /workspace tracks your latest git push and
+# `import plant_bert` resolves. Baking it in would go stale on every commit.
+
+CMD ["/bin/bash"]

@@ -1,657 +1,661 @@
 ● Everything is clean. Here's the full picture of what was built:                           
-                                                                                            
-  ---                                                                                       
-  What was created (15 files, zero existing files touched)                                  
-                                                                                            
-  src/plant_bert/adapt/                                                                     
-  ├── __init__.py       exports PlantESM2, ESM2Adapter, TokenBudgetCallback                 
-  ├── model.py          PlantESM2 wraps EsmForMaskedLM; same interface as PlantProteinBERT  
-  └── trainer.py        ESM2Adapter (LightningModule) + TokenBudgetCallback                 
-                                                                                            
-  scripts/                                                                                  
-  └── adapt_esm2.py     entry point with its own Hydra root (configs/esm2_adapt/)           
-                                                                                            
-  configs/esm2_adapt/                                                                       
-  ├── config.yaml               Hydra root — completely separate from configs/config.yaml   
-  ├── data/trembl_plant.yaml    reuses UniProtDataModule + existing sequences.h5            
-  ├── model/                                                                                
-  │   ├── esm2_8m.yaml          facebook/esm2_t6_8M_UR50D                                   
-  │   ├── esm2_35m.yaml         facebook/esm2_t12_35M_UR50D                                 
-  │   └── esm2_150m.yaml        facebook/esm2_t30_150M_UR50D + gradient_checkpointing       
-  ├── training/                                                                             
-  │   ├── adapt_8m.yaml         800M token budget, LR=2e-5, batch=64                        
-  │   ├── adapt_35m.yaml        800M token budget, LR=2e-5, batch=32                        
-  │   └── adapt_150m.yaml       1.6B token budget, LR=1e-5, batch=16, accum=4             
-  └── experiment/                                                                           
-      ├── adapt_esm2_8m.yaml    one-command launcher                                   
-      ├── adapt_esm2_35m.yaml                                                               
-      └── adapt_esm2_150m.yaml  primary experiment                                     
-                                                                                            
-  Three design decisions worth noting:                                                 
-                                                                                            
-  1. TokenBudgetCallback — training stops precisely when the token budget is consumed,      
-  regardless of batch size. max_steps in the trainer is just a ceiling that never fires   
-  under normal conditions.                                                                  
-  2. HF export after training — save_hf_checkpoint() writes                            
-  checkpoints/esm2_adapt/150m/hf_model/ alongside the Lightning .ckpt. This is loadable with
-   EsmForMaskedLM.from_pretrained(path) for downstream fine-tuning without Lightning.
-  3. UniProtDataModule reused as-is — EsmTokenizer has the same call signature as your      
-  custom tokenizer, so zero changes to the data pipeline.                                   
                                                                                           
-  To run: python scripts/adapt_esm2.py +experiment=adapt_esm2_150m                          
-                                                                                       
+---                                                                                       
+What was created (15 files, zero existing files touched)                                  
+                                                                                          
+src/plant_bert/adapt/                                                                     
+├── __init__.py       exports PlantESM2, ESM2Adapter, TokenBudgetCallback                 
+├── model.py          PlantESM2 wraps EsmForMaskedLM; same interface as PlantProteinBERT  
+└── trainer.py        ESM2Adapter (LightningModule) + TokenBudgetCallback                 
+                                                                                          
+scripts/                                                                                  
+└── adapt_esm2.py     entry point with its own Hydra root (configs/esm2_adapt/)           
+                                                                                          
+configs/esm2_adapt/                                                                       
+├── config.yaml               Hydra root — completely separate from configs/config.yaml   
+├── data/trembl_plant.yaml    reuses UniProtDataModule + existing sequences.h5            
+├── model/                                                                                
+│   ├── esm2_8m.yaml          facebook/esm2_t6_8M_UR50D                                   
+│   ├── esm2_35m.yaml         facebook/esm2_t12_35M_UR50D                                 
+│   └── esm2_150m.yaml        facebook/esm2_t30_150M_UR50D + gradient_checkpointing       
+├── training/                                                                             
+│   ├── adapt_8m.yaml         800M token budget, LR=2e-5, batch=64                        
+│   ├── adapt_35m.yaml        800M token budget, LR=2e-5, batch=32                        
+│   └── adapt_150m.yaml       1.6B token budget, LR=1e-5, batch=16, accum=4             
+└── experiment/                                                                           
+    ├── adapt_esm2_8m.yaml    one-command launcher                                   
+    ├── adapt_esm2_35m.yaml                                                               
+    └── adapt_esm2_150m.yaml  primary experiment                                     
+                                                                                          
+Three design decisions worth noting:                                                 
+                                                                                          
+1. TokenBudgetCallback — training stops precisely when the token budget is consumed,      
+regardless of batch size. max_steps in the trainer is just a ceiling that never fires   
+under normal conditions.                                                                  
+2. HF export after training — save_hf_checkpoint() writes                            
+checkpoints/esm2_adapt/150m/hf_model/ alongside the Lightning .ckpt. This is loadable with
+  EsmForMaskedLM.from_pretrained(path) for downstream fine-tuning without Lightning.
+3. UniProtDataModule reused as-is — EsmTokenizer has the same call signature as your      
+custom tokenizer, so zero changes to the data pipeline.                                   
+                                                                                        
+To run: python scripts/adapt_esm2.py +experiment=adapt_esm2_150m                          
+                                                                                      
 ✻ Cooked for 8m 25s                                                                         
-                                                  
+                                                
 
 
 
 ● Data is ready. In your terminal:
 
-  conda activate plantbert
-  cd /home/dipayan/Documents/Plant-Protein-BERT
-  python scripts/adapt_esm2.py +experiment=adapt_esm2_8m
+conda activate plantbert
+cd /home/dipayan/Documents/Plant-Protein-BERT
+python scripts/adapt_esm2.py +experiment=adapt_esm2_8m
 
 
 ####### choose data 
 
 ❯ is there any guide for finetuning token selection ?                                                  
-                                                                                                       
+                                                                                                      
 ● There's no single universal formula, but there are established frameworks. Here's the practical      
-  landscape:                                                                                           
-                                                                                                       
-  ---
-  The foundational reference: Chinchilla (from-scratch)                                                
-                                                                                                       
-  Hoffmann et al. 2022 ("Training Compute-Optimal LLMs") gives the from-scratch optimal rule:
-                                                                                                       
-  tokens = 20 × parameters                                                                             
-   
-  ┌────────────┬──────────────────────┬──────────────────┬─────────────────────────────────┐           
-  │ Your model │ From-scratch optimal │ Your DAPT budget │              Ratio              │
-  ├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
-  │ 8M         │ 160M tokens          │ 800M             │ 5× over-trained (fine for DAPT) │
-  ├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
-  │ 35M        │ 700M tokens          │ 800M             │ 1.1×                            │           
-  ├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
-  │ 150M       │ 3B tokens            │ 1.6B             │ 0.5×                            │           
-  ├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
-  │ 650M       │ 13B tokens           │ 1.6B             │ 0.12× under-trained             │
-  └────────────┴──────────────────────┴──────────────────┴─────────────────────────────────┘           
-                  
-  Chinchilla is for from-scratch training. For DAPT you need far less because the model already knows  
-  protein biochemistry.
-                                                                                                       
-  ---             
-  The key DAPT reference: "Don't Stop Pretraining"
-                                                  
-  Gururangan et al. 2020 (ACL) is the most-cited DAPT paper. Key findings:
-  - DAPT always helps for domain-specific tasks                                                        
-  - They trained for roughly 12.5% of the original pretraining budget
-  - They did not tune the token count — just used a fixed compute budget and stopped                   
-  - Downstream task gain, not MLM loss, is what actually matters                                       
-                                                                                                       
-  They found diminishing returns after ~0.1–0.2 passes over the domain corpus, which matches your      
-  configs.                                                                                             
-                                                                                                       
-  ---                                                                                                  
-  Protein-specific guidance
-                                                                                                       
-  There's no published formula specifically for protein LM DAPT. The papers that do it (ProtST, ESM
-  fine-tuning papers) typically just report: "we trained for N steps" without rigorous token budget    
-  justification. What they consistently do:
-                                                                                                       
-  - Use 1–10% of the original training compute                                                         
-  - Stop at val loss plateau, not a fixed budget
-  - Validate on a downstream task (GO terms, localization) — that's the real signal, not MLM perplexity
-                                                                                                       
-  ---                                                                                                  
-  Practical decision framework                                                                         
-                  
-  1. Compute your domain corpus size in tokens
-     → yours: 19.9M seqs × avg 339 AA = 6.76B tokens                                                   
-                                                                                                       
-  2. Set a "passes" target:                                                                            
-     - 0.1 passes → light adaptation, low forgetting risk                                              
-     - 0.25 passes → moderate adaptation (your 150M/650M)                                              
-     - 0.5 passes → strong adaptation, monitor for forgetting
-     - >1 pass → only if you have strong downstream evidence it helps                                  
-                                                                                                       
-  3. Multiply: budget = passes × corpus_tokens                                                         
-     → 0.12 × 6.76B = 810M ≈ your 800M ✓                                                               
-                                                                                                       
-  4. Sanity check against Chinchilla:
-     - If budget > 5× Chinchilla optimal: you may be wasting compute                                   
-     - If budget < 0.05× Chinchilla optimal: likely too little signal                                  
-                                                                                                       
-  5. The real stopping criterion: checkpoint every ~20% of budget,                                     
-     run your linear probe benchmark, stop when downstream gain plateaus                               
-                                                                                                       
-  ---             
-  The honest answer
-                                                                                                       
-  Your budgets (800M and 1.6B) are well-reasoned and consistent with the DAPT literature. The field
-  doesn't have a precise formula — the best practice is to checkpoint frequently and evaluate          
-  downstream task performance, which is what your benchmark script (scripts/benchmark_plant_tasks.py)
-  is designed to do.                                                                                   
-                  
+landscape:                                                                                           
+                                                                                                      
+---
+The foundational reference: Chinchilla (from-scratch)                                                
+                                                                                                      
+Hoffmann et al. 2022 ("Training Compute-Optimal LLMs") gives the from-scratch optimal rule:
+                                                                                                      
+tokens = 20 × parameters                                                                             
+  
+┌────────────┬──────────────────────┬──────────────────┬─────────────────────────────────┐           
+│ Your model │ From-scratch optimal │ Your DAPT budget │              Ratio              │
+├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
+│ 8M         │ 160M tokens          │ 800M             │ 5× over-trained (fine for DAPT) │
+├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
+│ 35M        │ 700M tokens          │ 800M             │ 1.1×                            │           
+├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
+│ 150M       │ 3B tokens            │ 1.6B             │ 0.5×                            │           
+├────────────┼──────────────────────┼──────────────────┼─────────────────────────────────┤           
+│ 650M       │ 13B tokens           │ 1.6B             │ 0.12× under-trained             │
+└────────────┴──────────────────────┴──────────────────┴─────────────────────────────────┘           
+                
+Chinchilla is for from-scratch training. For DAPT you need far less because the model already knows  
+protein biochemistry.
+                                                                                                      
+---             
+The key DAPT reference: "Don't Stop Pretraining"
+                                                
+Gururangan et al. 2020 (ACL) is the most-cited DAPT paper. Key findings:
+- DAPT always helps for domain-specific tasks                                                        
+- They trained for roughly 12.5% of the original pretraining budget
+- They did not tune the token count — just used a fixed compute budget and stopped                   
+- Downstream task gain, not MLM loss, is what actually matters                                       
+                                                                                                      
+They found diminishing returns after ~0.1–0.2 passes over the domain corpus, which matches your      
+configs.                                                                                             
+                                                                                                      
+---                                                                                                  
+Protein-specific guidance
+                                                                                                      
+There's no published formula specifically for protein LM DAPT. The papers that do it (ProtST, ESM
+fine-tuning papers) typically just report: "we trained for N steps" without rigorous token budget    
+justification. What they consistently do:
+                                                                                                      
+- Use 1–10% of the original training compute                                                         
+- Stop at val loss plateau, not a fixed budget
+- Validate on a downstream task (GO terms, localization) — that's the real signal, not MLM perplexity
+                                                                                                      
+---                                                                                                  
+Practical decision framework                                                                         
+                
+1. Compute your domain corpus size in tokens
+    → yours: 19.9M seqs × avg 339 AA = 6.76B tokens                                                   
+                                                                                                      
+2. Set a "passes" target:                                                                            
+    - 0.1 passes → light adaptation, low forgetting risk                                              
+    - 0.25 passes → moderate adaptation (your 150M/650M)                                              
+    - 0.5 passes → strong adaptation, monitor for forgetting
+    - >1 pass → only if you have strong downstream evidence it helps                                  
+                                                                                                      
+3. Multiply: budget = passes × corpus_tokens                                                         
+    → 0.12 × 6.76B = 810M ≈ your 800M ✓                                                               
+                                                                                                      
+4. Sanity check against Chinchilla:
+    - If budget > 5× Chinchilla optimal: you may be wasting compute                                   
+    - If budget < 0.05× Chinchilla optimal: likely too little signal                                  
+                                                                                                      
+5. The real stopping criterion: checkpoint every ~20% of budget,                                     
+    run your linear probe benchmark, stop when downstream gain plateaus                               
+                                                                                                      
+---             
+The honest answer
+                                                                                                      
+Your budgets (800M and 1.6B) are well-reasoned and consistent with the DAPT literature. The field
+doesn't have a precise formula — the best practice is to checkpoint frequently and evaluate          
+downstream task performance, which is what your benchmark script (scripts/benchmark_plant_tasks.py)
+is designed to do.                                                                                   
+                
 ✻ Baked for 35s                 
 
 
 
 ● I have all the data. Here's the full diagnostic report:                        
+                                                                                        
+---
+#### ESM-2 35M Adaptation Training Report                                                                                       
+                                    
+Date: Apr 28, 2026 | Run ID: bepwjjt4 | GPU: RTX 3060 12GB                                                                 
+                                                                                                                            
+---
+Current Status                                                                                                             
+                
+┌────────────────────┬──────────────────────────────────────────┐
+│       Metric       │                  Value                   │
+├────────────────────┼──────────────────────────────────────────┤
+│ Progress           │ 40,000 / 55,000 steps (72.7%)            │
+├────────────────────┼──────────────────────────────────────────┤
+│ Elapsed            │ 34 hours                                 │                                                          
+├────────────────────┼──────────────────────────────────────────┤                                                          
+│ ETA                │ ~2:12 (finishes ~2 PM today)             │                                                          
+├────────────────────┼──────────────────────────────────────────┤                                                          
+│ Speed (training)   │ 1.89 it/s                                │ 
+├────────────────────┼──────────────────────────────────────────┤                                                          
+│ Speed (validation) │ 6.13 it/s                                │
+├────────────────────┼──────────────────────────────────────────┤                                                          
+│ GPU Utilization    │ 100%, 80°C, 169W/170W (at thermal limit) │
+├────────────────────┼──────────────────────────────────────────┤                                                          
+│ GPU Memory         │ 7,205 MiB / 12,288 MiB used              │
+└────────────────────┴──────────────────────────────────────────┘                                                          
+                
+Training is alive and will complete today. You don't need to restart it.                                                   
+                
+---                                                                                                                        
+Root Cause: Validation is Eating 83% of Wall Time
+                                                                                                                            
+This is the main problem. The config uses val_split: 0.05 on a 19.9M-sequence dataset:
+                                                                                                                            
+Total sequences:       19,938,415
+Val set (5%):             996,920  →  31,153 batches at bs=32                                                              
+Each validation pass:  31,153 / 6.13 it/s  =  ~85 minutes                                                                  
+Validation frequency:  every 2,000 steps  (27 passes total)                                                                
+                                                                                                                            
+Time breakdown for the full 55K-step run:                                                                                  
+                                                                                                                            
+┌───────────────────────────────────┬──────────────┐                                                                       
+│             Component             │     Time     │
+├───────────────────────────────────┼──────────────┤
+│ Actual training compute           │ ~7.8 hours   │
+├───────────────────────────────────┼──────────────┤
+│ Validation overhead (27 × 85 min) │ ~38 hours    │                                                                       
+├───────────────────────────────────┼──────────────┤                                                                       
+│ Total wall time                   │ ~36–37 hours │                                                                       
+└───────────────────────────────────┴──────────────┘                                                                       
+                
+The config comment says "~8 hours" — that estimate only counted training steps. It missed that validation on a 1M-sequence 
+val set at this GPU's speed would dominate.
+                                                                                                                            
+---             
+Loss Trajectory (from output log samples)
+                                          
+┌────────┬────────────┬──────────┬─────────────┐
+│  Step  │ Train Loss │ Val Loss │ Tokens Seen │                                                                           
+├────────┼────────────┼──────────┼─────────────┤
+│ 6,000  │ 2.198      │ 2.218    │ 0.059B      │                                                                           
+├────────┼────────────┼──────────┼─────────────┤
+│ 10,000 │ 2.186      │ —        │ 0.097B      │
+├────────┼────────────┼──────────┼─────────────┤                                                                           
+│ 14,000 │ 2.248      │ —        │ 0.136B      │
+├────────┼────────────┼──────────┼─────────────┤                                                                           
+│ 18,000 │ 2.149      │ 2.149    │ 0.175B      │
+├────────┼────────────┼──────────┼─────────────┤                                                                           
+│ 24,000 │ 2.130      │ —        │ 0.234B      │
+├────────┼────────────┼──────────┼─────────────┤                                                                           
+│ 30,000 │ 2.115      │ —        │ 0.292B      │
+├────────┼────────────┼──────────┼─────────────┤
+│ 36,000 │ ~2.00      │ —        │ 0.351B      │
+├────────┼────────────┼──────────┼─────────────┤                                                                           
+│ 40,000 │ 2.121      │ 2.096    │ 0.390B      │
+└────────┴────────────┴──────────┴─────────────┘                                                                           
+                
+Loss is declining steadily (~0.12 decrease). The small upward bumps (e.g. step 14K) are per-batch noise, not divergence.   
+This is normal continued pretraining behavior on a pretrained checkpoint.
+                                                                                                                            
+---             
+Issues Found
+            
+1. [CRITICAL] limit_val_batches is missing
+                                                                                                                            
+The 85-minute validation passes are entirely avoidable. Add this to adapt_35m.yaml for future runs:                        
+                                                                                                                            
+trainer:                                                                                                                   
+  limit_val_batches: 500   # ~81 sec per validation vs 85 minutes
+                                                                                                                            
+500 batches × 32 = 16,000 sequences — statistically representative. This alone would cut total wall time from ~36 hours to 
+~8 hours.                                                                                                                  
+                                                                                                                            
+2. [WARNING] 219 ESM-2 submodules stuck in eval mode                                                                       
+
+The startup log printed:                                                                                                   
+Found 219 module(s) in eval mode at the start of training.
+Modules in train mode: 1 / Modules in eval mode: 219      
+                                                                                                                            
+EsmForMaskedLM.from_pretrained() loads in eval mode by default. Only the outermost PlantESM2 wrapper got flipped to train
+mode — all 219 inner transformer submodules (attention layers, FFN, LayerNorm) remain in eval mode. Dropout is disabled    
+during this entire training run. The model IS learning (loss is falling), but without dropout regularization, which matters
+  at this scale.                                                                                                            
+                
+Fix — add to trainer.py:
+
+def on_train_start(self) -> None:
+    self.model.train()                                                                                                     
+
+3. [WARNING] Checkpoint callback appears stalled                                                                           
+                
+last.ckpt hasn't been updated since Apr 28 10:19 (step 19,000), even though training is at step 40,000. The two saved      
+checkpoints are step=18000 (val_loss=2.149) and step=19000. The current val_loss of 2.096 is better, so a new best
+checkpoint should have been written but wasn't. This suggests either:                                                      
+- A checkpoint callback bug when save_top_k=2 and save_last=True interact
+- The validation metric at committed epoch boundaries differs from the progress-bar value                                  
                                                                                           
-  ---
-  #### ESM-2 35M Adaptation Training Report                                                                                       
-                                      
-  Date: Apr 28, 2026 | Run ID: bepwjjt4 | GPU: RTX 3060 12GB                                                                 
-                                                                                                                             
-  ---
-  Current Status                                                                                                             
-                  
-  ┌────────────────────┬──────────────────────────────────────────┐
-  │       Metric       │                  Value                   │
-  ├────────────────────┼──────────────────────────────────────────┤
-  │ Progress           │ 40,000 / 55,000 steps (72.7%)            │
-  ├────────────────────┼──────────────────────────────────────────┤
-  │ Elapsed            │ 34 hours                                 │                                                          
-  ├────────────────────┼──────────────────────────────────────────┤                                                          
-  │ ETA                │ ~2:12 (finishes ~2 PM today)             │                                                          
-  ├────────────────────┼──────────────────────────────────────────┤                                                          
-  │ Speed (training)   │ 1.89 it/s                                │ 
-  ├────────────────────┼──────────────────────────────────────────┤                                                          
-  │ Speed (validation) │ 6.13 it/s                                │
-  ├────────────────────┼──────────────────────────────────────────┤                                                          
-  │ GPU Utilization    │ 100%, 80°C, 169W/170W (at thermal limit) │
-  ├────────────────────┼──────────────────────────────────────────┤                                                          
-  │ GPU Memory         │ 7,205 MiB / 12,288 MiB used              │
-  └────────────────────┴──────────────────────────────────────────┘                                                          
-                  
-  Training is alive and will complete today. You don't need to restart it.                                                   
-                  
-  ---                                                                                                                        
-  Root Cause: Validation is Eating 83% of Wall Time
-                                                                                                                             
-  This is the main problem. The config uses val_split: 0.05 on a 19.9M-sequence dataset:
-                                                                                                                             
-  Total sequences:       19,938,415
-  Val set (5%):             996,920  →  31,153 batches at bs=32                                                              
-  Each validation pass:  31,153 / 6.13 it/s  =  ~85 minutes                                                                  
-  Validation frequency:  every 2,000 steps  (27 passes total)                                                                
-                                                                                                                             
-  Time breakdown for the full 55K-step run:                                                                                  
-                                                                                                                             
-  ┌───────────────────────────────────┬──────────────┐                                                                       
-  │             Component             │     Time     │
-  ├───────────────────────────────────┼──────────────┤
-  │ Actual training compute           │ ~7.8 hours   │
-  ├───────────────────────────────────┼──────────────┤
-  │ Validation overhead (27 × 85 min) │ ~38 hours    │                                                                       
-  ├───────────────────────────────────┼──────────────┤                                                                       
-  │ Total wall time                   │ ~36–37 hours │                                                                       
-  └───────────────────────────────────┴──────────────┘                                                                       
-                  
-  The config comment says "~8 hours" — that estimate only counted training steps. It missed that validation on a 1M-sequence 
-  val set at this GPU's speed would dominate.
-                                                                                                                             
-  ---             
-  Loss Trajectory (from output log samples)
-                                           
-  ┌────────┬────────────┬──────────┬─────────────┐
-  │  Step  │ Train Loss │ Val Loss │ Tokens Seen │                                                                           
-  ├────────┼────────────┼──────────┼─────────────┤
-  │ 6,000  │ 2.198      │ 2.218    │ 0.059B      │                                                                           
-  ├────────┼────────────┼──────────┼─────────────┤
-  │ 10,000 │ 2.186      │ —        │ 0.097B      │
-  ├────────┼────────────┼──────────┼─────────────┤                                                                           
-  │ 14,000 │ 2.248      │ —        │ 0.136B      │
-  ├────────┼────────────┼──────────┼─────────────┤                                                                           
-  │ 18,000 │ 2.149      │ 2.149    │ 0.175B      │
-  ├────────┼────────────┼──────────┼─────────────┤                                                                           
-  │ 24,000 │ 2.130      │ —        │ 0.234B      │
-  ├────────┼────────────┼──────────┼─────────────┤                                                                           
-  │ 30,000 │ 2.115      │ —        │ 0.292B      │
-  ├────────┼────────────┼──────────┼─────────────┤
-  │ 36,000 │ ~2.00      │ —        │ 0.351B      │
-  ├────────┼────────────┼──────────┼─────────────┤                                                                           
-  │ 40,000 │ 2.121      │ 2.096    │ 0.390B      │
-  └────────┴────────────┴──────────┴─────────────┘                                                                           
-                  
-  Loss is declining steadily (~0.12 decrease). The small upward bumps (e.g. step 14K) are per-batch noise, not divergence.   
-  This is normal continued pretraining behavior on a pretrained checkpoint.
-                                                                                                                             
-  ---             
-  Issues Found
-              
-  1. [CRITICAL] limit_val_batches is missing
-                                                                                                                             
-  The 85-minute validation passes are entirely avoidable. Add this to adapt_35m.yaml for future runs:                        
-                                                                                                                             
-  trainer:                                                                                                                   
-    limit_val_batches: 500   # ~81 sec per validation vs 85 minutes
-                                                                                                                             
-  500 batches × 32 = 16,000 sequences — statistically representative. This alone would cut total wall time from ~36 hours to 
-  ~8 hours.                                                                                                                  
-                                                                                                                             
-  2. [WARNING] 219 ESM-2 submodules stuck in eval mode                                                                       
-  
-  The startup log printed:                                                                                                   
-  Found 219 module(s) in eval mode at the start of training.
-  Modules in train mode: 1 / Modules in eval mode: 219      
-                                                                                                                             
-  EsmForMaskedLM.from_pretrained() loads in eval mode by default. Only the outermost PlantESM2 wrapper got flipped to train
-  mode — all 219 inner transformer submodules (attention layers, FFN, LayerNorm) remain in eval mode. Dropout is disabled    
-  during this entire training run. The model IS learning (loss is falling), but without dropout regularization, which matters
-   at this scale.                                                                                                            
-                  
-  Fix — add to trainer.py:
+For the current run this is low-urgency (training will finish), but for 150M you'll want this working reliably.            
+                                                                                                                            
+4. [INFO] Token budget won't be the stopping criterion                                                                     
+                                                                                                                            
+At 9,750 tokens/optimizer-step, 55,000 steps processes only ~536M tokens, not the 800M budget. TokenBudgetCallback will    
+never fire — max_steps=55000 stops training first. The budget comment in the config is based on avg_seq≈250AA, but the
+actual dataset average is higher (~390M tokens / 40K steps = ~9,750 tok/step ÷ 32 batch = ~305 tokens/sequence including   
+padding). No action needed, just a calibration note.
 
-  def on_train_start(self) -> None:
-      self.model.train()                                                                                                     
-  
-  3. [WARNING] Checkpoint callback appears stalled                                                                           
-                  
-  last.ckpt hasn't been updated since Apr 28 10:19 (step 19,000), even though training is at step 40,000. The two saved      
-  checkpoints are step=18000 (val_loss=2.149) and step=19000. The current val_loss of 2.096 is better, so a new best
-  checkpoint should have been written but wasn't. This suggests either:                                                      
-  - A checkpoint callback bug when save_top_k=2 and save_last=True interact
-  - The validation metric at committed epoch boundaries differs from the progress-bar value                                  
-                                                                                           
-  For the current run this is low-urgency (training will finish), but for 150M you'll want this working reliably.            
-                                                                                                                             
-  4. [INFO] Token budget won't be the stopping criterion                                                                     
-                                                                                                                             
-  At 9,750 tokens/optimizer-step, 55,000 steps processes only ~536M tokens, not the 800M budget. TokenBudgetCallback will    
-  never fire — max_steps=55000 stops training first. The budget comment in the config is based on avg_seq≈250AA, but the
-  actual dataset average is higher (~390M tokens / 40K steps = ~9,750 tok/step ÷ 32 batch = ~305 tokens/sequence including   
-  padding). No action needed, just a calibration note.
+5. [INFO] Competing GPU process
 
-  5. [INFO] Competing GPU process
-
-  PID 1680 (attnseqppi) is consuming 148MB GPU memory. Not causing the slowdown but worth knowing if you hit OOM running     
-  150M.
-                                                                                                                             
-  ---             
-  For the 150M Run — Fix These Before Starting
-                                                                                                                             
-  # configs/esm2_adapt/training/adapt_150m.yaml
-  trainer:                                                                                                                   
-    limit_val_batches: 500   # ADD THIS — critical                                                                           
-    val_check_interval: 5000 # INCREASE from 2000 (fewer validation interruptions)                                           
-                                                                                                                             
-  # src/plant_bert/adapt/trainer.py — add to ESM2Adapter
-  def on_train_start(self) -> None:                                                                                          
-      self.model.train()      # ensure all 219 submodules are in train mode
-                                                                                                                             
-  The current 35M run is healthy and will finish in ~2 hours. The loss descent is normal. No restart needed.                 
-                                                                                                                             
+PID 1680 (attnseqppi) is consuming 148MB GPU memory. Not causing the slowdown but worth knowing if you hit OOM running     
+150M.
+                                                                                                                            
+---             
+For the 150M Run — Fix These Before Starting
+                                                                                                                            
+# configs/esm2_adapt/training/adapt_150m.yaml
+trainer:                                                                                                                   
+  limit_val_batches: 500   # ADD THIS — critical                                                                           
+  val_check_interval: 5000 # INCREASE from 2000 (fewer validation interruptions)                                           
+                                                                                                                            
+# src/plant_bert/adapt/trainer.py — add to ESM2Adapter
+def on_train_start(self) -> None:                                                                                          
+    self.model.train()      # ensure all 219 submodules are in train mode
+                                                                                                                            
+The current 35M run is healthy and will finish in ~2 hours. The loss descent is normal. No restart needed.                 
+                                                                                                                            
 ✻ Churned for 7m 2s                           
 
 
 Now I have everything needed for a complete report. Let me compile all findings:                                    
-                                                                                                                      
-  Searched for 2 patterns (ctrl+o to expand)                                              
-                                                                                                                      
+                                                                                                                    
+Searched for 2 patterns (ctrl+o to expand)                                              
+                                                                                                                    
 ● I now have everything I need. Here is the full diagnostic report:                                                   
-                                                                                                                      
-  ---                                                                                                                 
-  ESM2-150M Adaptation: Training Diagnostic Report                                                                    
-                                                                                                                      
-  Date: Apr 28, 2026 | Elapsed: 32.4 hours | Run ID: uw57p58h                                                         
-                                                                                                                      
-  ---                                                                                                                 
-  Current State (Live)                                                                                                
-                                                                                                                      
-  ┌───────────────────────────┬────────────────────────────────────────┐                                              
-  │          Metric           │                 Value                  │                                              
-  ├───────────────────────────┼────────────────────────────────────────┤                                              
-  │ Progress bar              │ 14,000 / 105,000 steps (micro-batches) │                                              
-  ├───────────────────────────┼────────────────────────────────────────┤                                              
-  │ Optimizer steps completed │ ~1,750 (micro-batches ÷ 8 accum)       │                                              
-  ├───────────────────────────┼────────────────────────────────────────┤                                              
-  │ Tokens seen               │ 34M / 1.6B budget (2.1%)               │                                              
-  ├───────────────────────────┼────────────────────────────────────────┤                                              
-  │ Train MLM loss            │ 1.841 (down from 1.946 at start)       │               
-  ├───────────────────────────┼────────────────────────────────────────┤                                              
-  │ Val MLM loss              │ 2.048                                  │               
-  ├───────────────────────────┼────────────────────────────────────────┤                                              
-  │ GPU utilization           │ 99%, 162W / 170W, 75°C                 │               
-  ├───────────────────────────┼────────────────────────────────────────┤                                              
-  │ VRAM                      │ 8,896 MB / 12,288 MB                   │               
-  ├───────────────────────────┼────────────────────────────────────────┤                                              
-  │ tqdm ETA shown            │ 11h 22m ← this is wrong                │               
-  └───────────────────────────┴────────────────────────────────────────┘                                              
-                                                                                       
-  ---                                                                                                                 
-  Root Cause: Catastrophic Validation Overhead                                         
-                                              
-  This is the core problem. Every 2,000 micro-batches (val_check_interval: 2000), Lightning runs a full validation 
-  epoch over your 996,920-sequence val set (5% of 19.9M sequences = 124,615 batches at batch_size: 8). There is no    
-  limit_val_batches set.
-                                                                                                                      
-  Timing proof from checkpoints:                                                                                      
-  
-  ┌───────────────┬───────────────┬───────────────┬─────────┬────────────────────┬───────────────────────────────┐    
-  │    Period     │  Optimizer    │ Micro-batches │  Wall   │  Training Portion  │      Validation Portion       │
-  │               │     Steps     │               │  Time   │                    │                               │    
-  ├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
-  │ Start → step  │ 1,250         │ 10,000        │ 25.2h   │ ~25 min (5 train   │ ~24.9h (5 validations × ~4.8h │
-  │ 1250          │               │               │         │ cycles)            │  each)                        │    
-  ├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
-  │ Step 1250 →   │ 250           │ 2,000         │ 5h 3m   │ ~15 min            │ 4h 48m (1 validation, HDF5    │    
-  │ 1500          │               │               │         │                    │ cold cache)                   │    
-  ├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
-  │ Step 1500 →   │ ~250          │ 2,000         │ 2h 9m   │ ~15 min            │ ~1h 54m (cache warming up)    │    
-  │ ~1750         │               │               │         │                    │                               │    
-  └───────────────┴───────────────┴───────────────┴─────────┴────────────────────┴───────────────────────────────┘
-                                                                                                                      
-  Each training cycle (2,000 micro-batches): ~15 minutes                               
-  Each validation pass (124,615 batches): ~2–5 hours (HDF5 page-cache was cold, warming now)
-                                                                                                                      
-  Ratio: ~8–19× more time in validation than in training.                                                             
-                                                                                                                      
-  ---                                                                                                                 
-  tqdm ETA Is Misleading                                                               
-                        
-  tqdm measures only training batch speed (2.22 it/s). It pauses during validation and does not add that time to the
-  ETA. So "11h 22m remaining" means "11h 22m of pure training steps" — it ignores all future validation time.         
-  
-  Actual ETA estimate:                                                                                                
-                                                                                       
-  - Remaining tokens: ~1.566B (out of 1.6B budget)                                                                    
-  - Remaining micro-batches: ~642,000
-  - Remaining training time at 2.22/s: ~80 hours                                                                      
-  - Remaining validations: ~321 validation runs                                                                       
-  - Validation time per run (cache still warming): 30 min–2 hours each
-  - Best case (cache fully warm, ~30 min/val): 80h + 321×0.5h = ~240 hours (10 days)                                  
-  - Worst case (stays slow, ~2h/val): 80h + 321×2h = ~722 hours (30 days)                                             
-                                                                                                                      
-  Realistic estimate: 10–15 more days, not 11 hours.                                                                  
-                                                                                                                      
-  ---                                                                                                                 
-  Secondary Issues                                                                     
-                  
-  1. Output log is bloated (392 MB, growing ~12 MB/hour)
-  WandB is capturing tqdm's ANSI progress bar output that refreshes every second. The file has 2.1M lines. Over 10    
-  more days this becomes 3–4 GB. No training impact, but wastes disk.                                                 
-  /wandb/run-20260427_032757-uw57p58h/files/output.log  392 MB                                                        
-  Disk is fine (469 GB free), but the file is junk data.                                                              
-                                                                                                                      
-  2. WandB cloud sync is failing (DNS errors)                                                                         
-  dial tcp: lookup api.wandb.ai ... i/o timeout                                                                       
-  Occurred at Apr 27 09:29, 14:31, and Apr 27 23:34. Metrics ARE being logged locally; you can sync later with:       
-  wandb sync wandb/run-20260427_032757-uw57p58h                                                                       
-                                                                                                                      
-  3. Loss is healthy but early                                                                                        
-  - Train: 1.946 → 1.841 (improving, ~5% drop)                                                                        
-  - ESM2-150M on general proteins typically reaches ~1.6–1.7 MLM loss                                                 
-  - You're at 2.1% of the token budget, so the model has barely adapted yet            
-                                                                                                                      
-  ---                                                                                                                 
-  The Fix                                                                                                             
-                                                                                                                      
-  Add limit_val_batches: 500 to configs/esm2_adapt/training/adapt_150m.yaml:           
-                                                                                                                      
-  trainer:
-    max_steps: 105000                                                                                                 
-    val_check_interval: 2000                                                           
-    log_every_n_steps: 50                                                                                             
-    gradient_clip_val: 1.0                                                             
-    precision: 16-mixed                                                                                               
-    accumulate_grad_batches: 8
-    devices: 1                                                                                                        
-    strategy: auto                                                                                                    
-    limit_val_batches: 500     # ← add this line
-                                                                                                                      
-  This caps each validation at 500 batches (4,000 sequences, 1.6 MB of validation), enough to track MLM loss trends.  
-  Each val run becomes ~3–4 minutes instead of 2–5 hours.                                                             
-                                                                                                                      
-  With this fix: Estimated total = ~80h training + 321 × 4min val = ~101 hours (~4.2 days)                            
-  
-  ---                                                                                                                 
-  Recommendation: Stop, Fix, Resume                                                    
-                                                                                                                      
-  You can resume from the saved checkpoint instead of starting from scratch:
-                                                                                                                      
-  # Kill current process (Ctrl+C in the terminal running it)                           
-                                                                                                                      
-  # Then edit the config to add limit_val_batches: 500                                                                
-                                                                                                                      
-  # Resume (Lightning auto-resumes from last.ckpt in the checkpoint dir)                                              
-  python scripts/adapt_esm2.py +experiment=adapt_esm2_150m \                           
-      training.trainer.limit_val_batches=500                                                                          
-                                                                                                                      
-  Check whether the training script supports ckpt_path resume — if not, you can pass it via Hydra override. You've    
-  only consumed 2.1% of the token budget so there's minimal loss from this restart.                                   
-                                                                                                                      
-  ---                                                                                  
-  Summary
-         
-  The training is not broken — GPU is fully utilized, loss is decreasing, checkpoints are saving. The sole problem is
-  that val_check_interval: 2000 with no limit_val_batches causes full passes over a 996K-sequence validation set every
-   15 minutes of training. This single config omission turns a ~4-day run into a ~15-day run. Add limit_val_batches: 
-  500 and either restart (with checkpoint resume) or kill and relaunch.                                               
-                                                                                       
+                                                                                                                    
+---                                                                                                                 
+ESM2-150M Adaptation: Training Diagnostic Report                                                                    
+                                                                                                                    
+Date: Apr 28, 2026 | Elapsed: 32.4 hours | Run ID: uw57p58h                                                         
+                                                                                                                    
+---                                                                                                                 
+Current State (Live)                                                                                                
+                                                                                                                    
+┌───────────────────────────┬────────────────────────────────────────┐                                              
+│          Metric           │                 Value                  │                                              
+├───────────────────────────┼────────────────────────────────────────┤                                              
+│ Progress bar              │ 14,000 / 105,000 steps (micro-batches) │                                              
+├───────────────────────────┼────────────────────────────────────────┤                                              
+│ Optimizer steps completed │ ~1,750 (micro-batches ÷ 8 accum)       │                                              
+├───────────────────────────┼────────────────────────────────────────┤                                              
+│ Tokens seen               │ 34M / 1.6B budget (2.1%)               │                                              
+├───────────────────────────┼────────────────────────────────────────┤                                              
+│ Train MLM loss            │ 1.841 (down from 1.946 at start)       │               
+├───────────────────────────┼────────────────────────────────────────┤                                              
+│ Val MLM loss              │ 2.048                                  │               
+├───────────────────────────┼────────────────────────────────────────┤                                              
+│ GPU utilization           │ 99%, 162W / 170W, 75°C                 │               
+├───────────────────────────┼────────────────────────────────────────┤                                              
+│ VRAM                      │ 8,896 MB / 12,288 MB                   │               
+├───────────────────────────┼────────────────────────────────────────┤                                              
+│ tqdm ETA shown            │ 11h 22m ← this is wrong                │               
+└───────────────────────────┴────────────────────────────────────────┘                                              
+                                                                                      
+---                                                                                                                 
+Root Cause: Catastrophic Validation Overhead                                         
+                                            
+This is the core problem. Every 2,000 micro-batches (val_check_interval: 2000), Lightning runs a full validation 
+epoch over your 996,920-sequence val set (5% of 19.9M sequences = 124,615 batches at batch_size: 8). There is no    
+limit_val_batches set.
+                                                                                                                    
+Timing proof from checkpoints:                                                                                      
+
+┌───────────────┬───────────────┬───────────────┬─────────┬────────────────────┬───────────────────────────────┐    
+│    Period     │  Optimizer    │ Micro-batches │  Wall   │  Training Portion  │      Validation Portion       │
+│               │     Steps     │               │  Time   │                    │                               │    
+├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
+│ Start → step  │ 1,250         │ 10,000        │ 25.2h   │ ~25 min (5 train   │ ~24.9h (5 validations × ~4.8h │
+│ 1250          │               │               │         │ cycles)            │  each)                        │    
+├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
+│ Step 1250 →   │ 250           │ 2,000         │ 5h 3m   │ ~15 min            │ 4h 48m (1 validation, HDF5    │    
+│ 1500          │               │               │         │                    │ cold cache)                   │    
+├───────────────┼───────────────┼───────────────┼─────────┼────────────────────┼───────────────────────────────┤
+│ Step 1500 →   │ ~250          │ 2,000         │ 2h 9m   │ ~15 min            │ ~1h 54m (cache warming up)    │    
+│ ~1750         │               │               │         │                    │                               │    
+└───────────────┴───────────────┴───────────────┴─────────┴────────────────────┴───────────────────────────────┘
+                                                                                                                    
+Each training cycle (2,000 micro-batches): ~15 minutes                               
+Each validation pass (124,615 batches): ~2–5 hours (HDF5 page-cache was cold, warming now)
+                                                                                                                    
+Ratio: ~8–19× more time in validation than in training.                                                             
+                                                                                                                    
+---                                                                                                                 
+tqdm ETA Is Misleading                                                               
+                      
+tqdm measures only training batch speed (2.22 it/s). It pauses during validation and does not add that time to the
+ETA. So "11h 22m remaining" means "11h 22m of pure training steps" — it ignores all future validation time.         
+
+Actual ETA estimate:                                                                                                
+                                                                                      
+- Remaining tokens: ~1.566B (out of 1.6B budget)                                                                    
+- Remaining micro-batches: ~642,000
+- Remaining training time at 2.22/s: ~80 hours                                                                      
+- Remaining validations: ~321 validation runs                                                                       
+- Validation time per run (cache still warming): 30 min–2 hours each
+- Best case (cache fully warm, ~30 min/val): 80h + 321×0.5h = ~240 hours (10 days)                                  
+- Worst case (stays slow, ~2h/val): 80h + 321×2h = ~722 hours (30 days)                                             
+                                                                                                                    
+Realistic estimate: 10–15 more days, not 11 hours.                                                                  
+                                                                                                                    
+---                                                                                                                 
+Secondary Issues                                                                     
+                
+1. Output log is bloated (392 MB, growing ~12 MB/hour)
+WandB is capturing tqdm's ANSI progress bar output that refreshes every second. The file has 2.1M lines. Over 10    
+more days this becomes 3–4 GB. No training impact, but wastes disk.                                                 
+/wandb/run-20260427_032757-uw57p58h/files/output.log  392 MB                                                        
+Disk is fine (469 GB free), but the file is junk data.                                                              
+                                                                                                                    
+2. WandB cloud sync is failing (DNS errors)                                                                         
+dial tcp: lookup api.wandb.ai ... i/o timeout                                                                       
+Occurred at Apr 27 09:29, 14:31, and Apr 27 23:34. Metrics ARE being logged locally; you can sync later with:       
+wandb sync wandb/run-20260427_032757-uw57p58h                                                                       
+                                                                                                                    
+3. Loss is healthy but early                                                                                        
+- Train: 1.946 → 1.841 (improving, ~5% drop)                                                                        
+- ESM2-150M on general proteins typically reaches ~1.6–1.7 MLM loss                                                 
+- You're at 2.1% of the token budget, so the model has barely adapted yet            
+                                                                                                                    
+---                                                                                                                 
+The Fix                                                                                                             
+                                                                                                                    
+Add limit_val_batches: 500 to configs/esm2_adapt/training/adapt_150m.yaml:           
+                                                                                                                    
+trainer:
+  max_steps: 105000                                                                                                 
+  val_check_interval: 2000                                                           
+  log_every_n_steps: 50                                                                                             
+  gradient_clip_val: 1.0                                                             
+  precision: 16-mixed                                                                                               
+  accumulate_grad_batches: 8
+  devices: 1                                                                                                        
+  strategy: auto                                                                                                    
+  limit_val_batches: 500     # ← add this line
+                                                                                                                    
+This caps each validation at 500 batches (4,000 sequences, 1.6 MB of validation), enough to track MLM loss trends.  
+Each val run becomes ~3–4 minutes instead of 2–5 hours.                                                             
+                                                                                                                    
+With this fix: Estimated total = ~80h training + 321 × 4min val = ~101 hours (~4.2 days)                            
+
+---                                                                                                                 
+Recommendation: Stop, Fix, Resume                                                    
+                                                                                                                    
+You can resume from the saved checkpoint instead of starting from scratch:
+                                                                                                                    
+# Kill current process (Ctrl+C in the terminal running it)                           
+                                                                                                                    
+# Then edit the config to add limit_val_batches: 500                                                                
+                                                                                                                    
+# Resume (Lightning auto-resumes from last.ckpt in the checkpoint dir)                                              
+python scripts/adapt_esm2.py +experiment=adapt_esm2_150m \                           
+    training.trainer.limit_val_batches=500                                                                          
+                                                                                                                    
+Check whether the training script supports ckpt_path resume — if not, you can pass it via Hydra override. You've    
+only consumed 2.1% of the token budget so there's minimal loss from this restart.                                   
+                                                                                                                    
+---                                                                                  
+Summary
+        
+The training is not broken — GPU is fully utilized, loss is decreasing, checkpoints are saving. The sole problem is
+that val_check_interval: 2000 with no limit_val_batches causes full passes over a 996K-sequence validation set every
+  15 minutes of training. This single config omission turns a ~4-day run into a ~15-day run. Add limit_val_batches: 
+500 and either restart (with checkpoint resume) or kill and relaunch.                                               
+                                                                                      
 ✻ Worked for 12m 2s                    
-                                                                                          
+                                                                                        
 ※ recap: Training ESM2-150M on plant proteins is running but will take 10–15 more days instead of the expected few    
-  days due to a config issue. Add `limit_val_batches: 500` to the trainer config and restart from the saved           
-  checkpoint. (disable recaps in /config)                                                                             
-                                                        
+days due to a config issue. Add `limit_val_batches: 500` to the trainer config and restart from the saved           
+checkpoint. (disable recaps in /config)                                                                             
+                                                      
 ===========================
 ===========================
 
 
 ❯ first i have to train the models first , @Hugging_face_uploads for these models how     
-  much data i used for continual pre training ?is it emough ? what should iseal check     
-  these also @configs/esm2_adapt/training for training token a passes , what shoud  be    
-  the ideal tokens budget for each parameter models?                                      
-  ⎿  Listed directory Hugging_face_uploads/
-  ⎿  Listed directory configs/esm2_adapt/training/
-  
-● I'll read the model cards (for tokens actually used) and all the training configs (for
-  token budgets per size), then work out the ideal budgets.
+much data i used for continual pre training ?is it emough ? what should iseal check     
+these also @configs/esm2_adapt/training for training token a passes , what shoud  be    
+the ideal tokens budget for each parameter models?                                      
+⎿  Listed directory Hugging_face_uploads/
+⎿  Listed directory configs/esm2_adapt/training/
 
-  Read 4 files (ctrl+o to expand)
+● I'll read the model cards (for tokens actually used) and all the training configs (for
+token budgets per size), then work out the ideal budgets.
+
+Read 4 files (ctrl+o to expand)
 
 ● Read all the cards and configs. Here's the full picture, including a token-accounting
-  inconsistency you should fix.
+inconsistency you should fix.
 
-  How much data each model actually used
+How much data each model actually used
 
-  Total corpus: 19,938,415 sequences ≈ 6.76 B tokens (avg 339 AA).
+Total corpus: 19,938,415 sequences ≈ 6.76 B tokens (avg 339 AA).
 
-  ┌───────┬────────┬─────────────────────────┬────────────────────┬────────────────┐
-  │ Model │ Params │     Tokens trained      │ Passes over corpus │ val perplexity │
-  ├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
-  │ 8M    │ 7.5M   │ 800 M                   │ 0.12               │ 9.92           │
-  ├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
-  │ 35M   │ 33.5M  │ 546 M                   │ 0.08               │ 7.96           │
-  ├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
-  │ 150M  │ ~148M  │ 1.6 B (planned, config) │ 0.24               │ — not run      │
-  ├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
-  │ 650M  │ ~650M  │ 1.6 B (planned, config) │ 0.24               │ — not run      │
-  └───────┴────────┴─────────────────────────┴────────────────────┴────────────────┘
+┌───────┬────────┬─────────────────────────┬────────────────────┬────────────────┐
+│ Model │ Params │     Tokens trained      │ Passes over corpus │ val perplexity │
+├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
+│ 8M    │ 7.5M   │ 800 M                   │ 0.12               │ 9.92           │
+├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
+│ 35M   │ 33.5M  │ 546 M                   │ 0.08               │ 7.96           │
+├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
+│ 150M  │ ~148M  │ 1.6 B (planned, config) │ 0.24               │ — not run      │
+├───────┼────────┼─────────────────────────┼────────────────────┼────────────────┤
+│ 650M  │ ~650M  │ 1.6 B (planned, config) │ 0.24               │ — not run      │
+└───────┴────────┴─────────────────────────┴────────────────────┴────────────────┘
 
-  "Is it enough?" — two different questions
+"Is it enough?" — two different questions
 
-  (a) Is the available data enough? Yes, overwhelmingly — you've used <12% of one pass.
-  Data is never your constraint here.
+(a) Is the available data enough? Yes, overwhelmingly — you've used <12% of one pass.
+Data is never your constraint here.
 
-  (b) Are the tokens trained enough? This is the real question, and the answer differs by
-  size. The cleanest lens is the Chinchilla compute-optimal floor (~20 tokens/param) —
-  that's the budget to fully train this many params from scratch. Continued pretraining
-  (DAPT) needs only a fraction of it (empirically ~20–50%) because the model already
-  speaks "protein." Measuring your runs against that:
+(b) Are the tokens trained enough? This is the real question, and the answer differs by
+size. The cleanest lens is the Chinchilla compute-optimal floor (~20 tokens/param) —
+that's the budget to fully train this many params from scratch. Continued pretraining
+(DAPT) needs only a fraction of it (empirically ~20–50%) because the model already
+speaks "protein." Measuring your runs against that:
 
-  ┌───────┬────────────────┬───────────────┬────────┬────────────────────────────────┐
-  │ Model │  Chinchilla    │     You       │  vs    │          DAPT verdict          │
-  │       │  floor (20×)   │ used/planned  │ floor  │                                │
-  ├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
-  │ 8M    │ 150 M          │ 800 M         │ 5.3×   │ Over-provisioned — definitely  │
-  │       │                │               │        │ enough (8M is cheap, fine)     │
-  ├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
-  │ 35M   │ 670 M          │ 546 M         │ 0.82×  │ Comfortably enough for DAPT    │
-  ├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
-  │ 150M  │ 3.0 B          │ 1.6 B         │ 0.53×  │ Good — at/above DAPT target    │
-  ├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
-  │ 650M  │ 13 B           │ 1.6 B         │ 0.12×  │ Under-budgeted — this is the   │
-  │       │                │               │        │ one to increase                │
-  └───────┴────────────────┴───────────────┴────────┴────────────────────────────────┘
+┌───────┬────────────────┬───────────────┬────────┬────────────────────────────────┐
+│ Model │  Chinchilla    │     You       │  vs    │          DAPT verdict          │
+│       │  floor (20×)   │ used/planned  │ floor  │                                │
+├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
+│ 8M    │ 150 M          │ 800 M         │ 5.3×   │ Over-provisioned — definitely  │
+│       │                │               │        │ enough (8M is cheap, fine)     │
+├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
+│ 35M   │ 670 M          │ 546 M         │ 0.82×  │ Comfortably enough for DAPT    │
+├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
+│ 150M  │ 3.0 B          │ 1.6 B         │ 0.53×  │ Good — at/above DAPT target    │
+├───────┼────────────────┼───────────────┼────────┼────────────────────────────────┤
+│ 650M  │ 13 B           │ 1.6 B         │ 0.12×  │ Under-budgeted — this is the   │
+│       │                │               │        │ one to increase                │
+└───────┴────────────────┴───────────────┴────────┴────────────────────────────────┘
 
-  So: your small models are well-trained (even generous); 150M is well-budgeted; your 
-  headline 650M model is the under-trained one. Giving 650M only 2× the 8M budget is too
-  little — bigger models warrant disproportionately more tokens, not the same.
+So: your small models are well-trained (even generous); 150M is well-budgeted; your 
+headline 650M model is the under-trained one. Giving 650M only 2× the 8M budget is too
+little — bigger models warrant disproportionately more tokens, not the same.
 
-  Recommended ideal token budgets
+Recommended ideal token budgets
 
-  ┌───────┬─────────┬─────────────┬───────────┬────────────────────────────────────────┐
-  │ Model │ Current │ Recommended │  Passes   │                  Why                   │
-  ├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
-  │ 8M    │ 800 M   │ 0.8–1.5 B   │ ~0.1–0.2  │ already near saturation;               │
-  │       │         │             │           │ capacity-limited                       │
-  ├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
-  │ 35M   │ 546 M   │ 1–2 B       │ ~0.15–0.3 │ small bump for headroom                │
-  ├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
-  │ 150M  │ 1.6 B   │ 2–4 B       │ ~0.3–0.6  │ benefits from more capacity            │
-  ├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
-  │ 650M  │ 1.6 B   │ 4–8 B       │ ~0.6–1.2  │ needs most tokens to actually move     │
-  │       │         │             │           │ 650M params                            │
-  └───────┴─────────┴─────────────┴───────────┴────────────────────────────────────────┘
+┌───────┬─────────┬─────────────┬───────────┬────────────────────────────────────────┐
+│ Model │ Current │ Recommended │  Passes   │                  Why                   │
+├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
+│ 8M    │ 800 M   │ 0.8–1.5 B   │ ~0.1–0.2  │ already near saturation;               │
+│       │         │             │           │ capacity-limited                       │
+├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
+│ 35M   │ 546 M   │ 1–2 B       │ ~0.15–0.3 │ small bump for headroom                │
+├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
+│ 150M  │ 1.6 B   │ 2–4 B       │ ~0.3–0.6  │ benefits from more capacity            │
+├───────┼─────────┼─────────────┼───────────┼────────────────────────────────────────┤
+│ 650M  │ 1.6 B   │ 4–8 B       │ ~0.6–1.2  │ needs most tokens to actually move     │
+│       │         │             │           │ 650M params                            │
+└───────┴─────────┴─────────────┴───────────┴────────────────────────────────────────┘
 
-  But the budget is a ceiling, not the decision. The real stopping rule (and what the
-  benchmarking brief recommends as an ablation — "gains appear early and stabilize with 
-  more plant tokens") is a token-budget sweep: checkpoint every ~500M tokens and plot (1) 
-  val/mlm_loss and (2) your downstream delta (localization / the new PPI test) vs tokens.
-  Stop when the downstream delta plateaus — that often happens before val loss flattens,
-  so downstream is the arbiter, not perplexity. Don't blindly burn 13B on 650M; watch the
-  curve and stop when it's flat.
+But the budget is a ceiling, not the decision. The real stopping rule (and what the
+benchmarking brief recommends as an ablation — "gains appear early and stabilize with 
+more plant tokens") is a token-budget sweep: checkpoint every ~500M tokens and plot (1) 
+val/mlm_loss and (2) your downstream delta (localization / the new PPI test) vs tokens.
+Stop when the downstream delta plateaus — that often happens before val loss flattens,
+so downstream is the arbiter, not perplexity. Don't blindly burn 13B on 650M; watch the
+curve and stop when it's flat.
 
-  What you should check/fix (config issues I found)
+What you should check/fix (config issues I found)
 
-  1. Token accounting is inconsistent. The configs' comments say "≈0.2 passes over the 
-  4B-token plant dataset" but the corpus is 6.76 B tokens (and the cards say so). And
-  comments assume ~16K tokens/step, but the real rate is ~9.9K tokens/step (546M ÷ 55000
-  steps for 35M). Recompute the step targets from the true rate.
-  2. max_steps is cutting runs short of their own token budget. The 35M set token_budget: 
-  800M but max_steps: 55000 — at ~9.9K tokens/step that's only 546M tokens, so it hit the
-  step ceiling, not the budget. Either raise max_steps so the TokenBudgetCallback is the 
-  binding stop, or accept the lower budget knowingly. (This is why 35M trained less than
-  8M despite identical config intent.)
-  3. LR never fully decays. get_linear_schedule_with_warmup(num_training_steps=...) is set
-  to the max_steps ceiling, but training stops earlier at the token budget — so the LR
-  ends mid-decay at a non-trivial value instead of ~0. Set num_training_steps to the
-  actual expected stop step so the model gets its low-LR fine-convergence phase. This
-  measurably improves final quality.
-  4. Add a forgetting check. Full-param continued pretraining on a (relatively narrow)
-  plant corpus can erode general protein knowledge. Hold out a small non-plant validation
-  set and track its perplexity alongside the plant val loss — if non-plant perplexity
-  climbs sharply, lower the LR or stop earlier. Your low LR (1e-5–2e-5) is the right
-  mitigation, but verify it.
+1. Token accounting is inconsistent. The configs' comments say "≈0.2 passes over the 
+4B-token plant dataset" but the corpus is 6.76 B tokens (and the cards say so). And
+comments assume ~16K tokens/step, but the real rate is ~9.9K tokens/step (546M ÷ 55000
+steps for 35M). Recompute the step targets from the true rate.
+2. max_steps is cutting runs short of their own token budget. The 35M set token_budget: 
+800M but max_steps: 55000 — at ~9.9K tokens/step that's only 546M tokens, so it hit the
+step ceiling, not the budget. Either raise max_steps so the TokenBudgetCallback is the 
+binding stop, or accept the lower budget knowingly. (This is why 35M trained less than
+8M despite identical config intent.)
+3. LR never fully decays. get_linear_schedule_with_warmup(num_training_steps=...) is set
+to the max_steps ceiling, but training stops earlier at the token budget — so the LR
+ends mid-decay at a non-trivial value instead of ~0. Set num_training_steps to the
+actual expected stop step so the model gets its low-LR fine-convergence phase. This
+measurably improves final quality.
+4. Add a forgetting check. Full-param continued pretraining on a (relatively narrow)
+plant corpus can erode general protein knowledge. Hold out a small non-plant validation
+set and track its perplexity alongside the plant val loss — if non-plant perplexity
+climbs sharply, lower the LR or stop earlier. Your low LR (1e-5–2e-5) is the right
+mitigation, but verify it.
 
-  ---
-  Bottom line: Data abundance is fine. Your 8M/35M/150M token budgets are
-  reasonable-to-generous; the 650M is the one that's under-budgeted — plan ~4–8B tokens 
-  for it, driven by a downstream-metric sweep rather than a fixed number. Before any big
-  run, fix the max_steps-vs-token_budget and LR-decay-endpoint issues, and correct the
-  "4B" → 6.76B comment, so the runs actually do what the budget says.
+---
+Bottom line: Data abundance is fine. Your 8M/35M/150M token budgets are
+reasonable-to-generous; the 650M is the one that's under-budgeted — plan ~4–8B tokens 
+for it, driven by a downstream-metric sweep rather than a fixed number. Before any big
+run, fix the max_steps-vs-token_budget and LR-decay-endpoint issues, and correct the
+"4B" → 6.76B comment, so the runs actually do what the budget says.
 
-  Want me to patch the four config issues across adapt_8m/35m/150m/650m*.yaml (correct
-  corpus size, make token_budget binding, align LR decay endpoint) and add an optional
-  non-plant forgetting-eval hook?
+Want me to patch the four config issues across adapt_8m/35m/150m/650m*.yaml (correct
+corpus size, make token_budget binding, align LR decay endpoint) and add an optional
+non-plant forgetting-eval hook?
 
 ===========================
 ===========================
 
 ❯ if i train on runpod with a 24 gb or 40 or 80 gb gpu then what to change to utilise     
-  the total gou and fastest run                                                           
-  
-● For maximizing GPU use and wall-clock speed, the levers are: precision, batch size, 
-  gradient checkpointing, and data-loading — plus you must re-derive
-  max_steps/num_training_steps because a bigger batch changes tokens-per-step. Let me
-  check the model config (that's where gradient checkpointing lives).
+the total gou and fastest run                                                           
 
-  Read 1 file (ctrl+o to expand)
+● For maximizing GPU use and wall-clock speed, the levers are: precision, batch size, 
+gradient checkpointing, and data-loading — plus you must re-derive
+max_steps/num_training_steps because a bigger batch changes tokens-per-step. Let me
+check the model config (that's where gradient checkpointing lives).
+
+Read 1 file (ctrl+o to expand)
 
 ● Read it — gradient_checkpointing: true lives there, sized for your old RTX 3060 12 GB.
-  On a RunPod A100, that setting is now costing you ~20% speed for memory you don't need.
+On a RunPod A100, that setting is now costing you ~20% speed for memory you don't need.
 
-  The core idea
+The core idea
 
-  Your total work is fixed: 3.5 B tokens. "Fastest" = maximize tokens/second (GPU
-  utilization), and a bigger batch also means fewer optimizer steps. The 150M model itself
-  is tiny (~2.4 GB of weights+optimizer state) — on these GPUs, activations from the 
-  batch are the only thing filling VRAM, so you push batch size up until VRAM is ~85–90%
-  full.
+Your total work is fixed: 3.5 B tokens. "Fastest" = maximize tokens/second (GPU
+utilization), and a bigger batch also means fewer optimizer steps. The 150M model itself
+is tiny (~2.4 GB of weights+optimizer state) — on these GPUs, activations from the 
+batch are the only thing filling VRAM, so you push batch size up until VRAM is ~85–90%
+full.
 
-  Four things to change (all GPUs)
+Four things to change (all GPUs)
 
-  1. precision: 16-mixed → bf16-mixed — every RunPod card
-  (3090/4090/A5000/A40/L40S/A100/H100) is Ampere+ and supports bf16. More stable than
-  fp16, same speed.
-  2. accumulate_grad_batches: 8 → 1 — single big GPU doesn't need accumulation; one big
-  forward/backward is faster than 8 small ones.
-  3. data.batch_size: 8 → as large as fits (this replaces the accum; effective batch =
-  batch_size now).
-  4. num_workers: 8 → match the pod's vCPUs (often 16–32 on A100 pods) so data loading
-  never stalls the GPU.
+1. precision: 16-mixed → bf16-mixed — every RunPod card
+(3090/4090/A5000/A40/L40S/A100/H100) is Ampere+ and supports bf16. More stable than
+fp16, same speed.
+2. accumulate_grad_batches: 8 → 1 — single big GPU doesn't need accumulation; one big
+forward/backward is faster than 8 small ones.
+3. data.batch_size: 8 → as large as fits (this replaces the accum; effective batch =
+batch_size now).
+4. num_workers: 8 → match the pod's vCPUs (often 16–32 on A100 pods) so data loading
+never stalls the GPU.
 
-  Per-GPU recommended settings
+Per-GPU recommended settings
 
-  Tokens/step ≈ batch_size × 155. Budget = 3.5 B. So bigger batch → far fewer steps.
-  max_steps, num_training_steps, and LR all change with the batch — you can't just change
-  batch size alone:
+Tokens/step ≈ batch_size × 155. Budget = 3.5 B. So bigger batch → far fewer steps.
+max_steps, num_training_steps, and LR all change with the batch — you can't just change
+batch size alone:
 
-  ┌─────────────┬────────────────┬────────┬────────┬─────────┬─────────────┬─────────┐
-  │             │ gradient_check │ batch_ │ precis │ tokens/ │ max_steps & │         │
-  │     GPU     │   pointing     │  size  │  ion   │  step   │  num_traini │   lr    │
-  │             │  (model cfg)   │        │        │         │  ng_steps   │         │
-  ├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
-  │ 24 GB       │                │        │ bf16-m │         │ 400,000     │ 1e-5    │
-  │ (3090/4090/ │ keep true      │ 64     │ ixed   │ ~9.9K   │ (unchanged) │ (unchan │
-  │ A5000)      │                │        │        │         │             │ ged)    │
-  ├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
-  │ 40 GB       │                │        │ bf16-m │         │             │         │
-  │ (A100-40/A4 │ false          │ 128    │ ixed   │ ~19.8K  │ 200,000     │ 1.4e-5  │
-  │ 0/L40S)     │                │        │        │         │             │         │
-  ├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
-  │ 80 GB (A100 │ false          │ 256    │ bf16-m │ ~39.7K  │ 100,000     │ 2e-5    │
-  │ -80/H100)   │                │        │ ixed   │         │             │         │
-  └─────────────┴────────────────┴────────┴────────┴─────────┴─────────────┴─────────┘
+┌─────────────┬────────────────┬────────┬────────┬─────────┬─────────────┬─────────┐
+│             │ gradient_check │ batch_ │ precis │ tokens/ │ max_steps & │         │
+│     GPU     │   pointing     │  size  │  ion   │  step   │  num_traini │   lr    │
+│             │  (model cfg)   │        │        │         │  ng_steps   │         │
+├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
+│ 24 GB       │                │        │ bf16-m │         │ 400,000     │ 1e-5    │
+│ (3090/4090/ │ keep true      │ 64     │ ixed   │ ~9.9K   │ (unchanged) │ (unchan │
+│ A5000)      │                │        │        │         │             │ ged)    │
+├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
+│ 40 GB       │                │        │ bf16-m │         │             │         │
+│ (A100-40/A4 │ false          │ 128    │ ixed   │ ~19.8K  │ 200,000     │ 1.4e-5  │
+│ 0/L40S)     │                │        │        │         │             │         │
+├─────────────┼────────────────┼────────┼────────┼─────────┼─────────────┼─────────┤
+│ 80 GB (A100 │ false          │ 256    │ bf16-m │ ~39.7K  │ 100,000     │ 2e-5    │
+│ -80/H100)   │                │        │ ixed   │         │             │         │
+└─────────────┴────────────────┴────────┴────────┴─────────┴─────────────┴─────────┘
 
-  - LR scaling: I scaled by √(batch ratio) from your 1e-5@64 baseline (sqrt rule — the
-  safe choice for continued pretraining; linear scaling risks catastrophic forgetting at
-  this stage).
-  - Start conservative, then push: these batch sizes are safe starting points. Watch
-  nvidia-smi; if VRAM sits below ~85%, bump batch higher (and re-derive steps: steps ≈ 
-  3.5e9 / (batch×155)).
-  - For 24 GB: try gradient_checkpointing: false + batch_size: 32 first; if it fits
-  comfortably you keep full speed. If OOM, revert to true + 64.
+- LR scaling: I scaled by √(batch ratio) from your 1e-5@64 baseline (sqrt rule — the
+safe choice for continued pretraining; linear scaling risks catastrophic forgetting at
+this stage).
+- Start conservative, then push: these batch sizes are safe starting points. Watch
+nvidia-smi; if VRAM sits below ~85%, bump batch higher (and re-derive steps: steps ≈ 
+3.5e9 / (batch×155)).
+- For 24 GB: try gradient_checkpointing: false + batch_size: 32 first; if it fits
+comfortably you keep full speed. If OOM, revert to true + 64.
 
-  Two optional code-level speedups (bigger wins on A100/H100)
+Two optional code-level speedups (bigger wins on A100/H100)
 
-  These need a one-line change in scripts/adapt_esm2.py / the model loader, not config:
-  - TF32 matmul: torch.set_float32_matmul_precision("high") — free ~1.3–1.5× on Ampere+.
-  - SDPA/FlashAttention: load ESM with attn_implementation="sdpa" — faster attention +
-  less memory, lets you raise batch further. (HF ESM may default to eager.)
+These need a one-line change in scripts/adapt_esm2.py / the model loader, not config:
+- TF32 matmul: torch.set_float32_matmul_precision("high") — free ~1.3–1.5× on Ampere+.
+- SDPA/FlashAttention: load ESM with attn_implementation="sdpa" — faster attention +
+less memory, lets you raise batch further. (HF ESM may default to eager.)
 
-  If RunPod gives you multiple GPUs (the real fastest path)
+If RunPod gives you multiple GPUs (the real fastest path)
 
-  A 2–8× A100 pod scales near-linearly. Set in the training config:
-  trainer:
-    devices: -1          # use all GPUs
-    strategy: ddp
-  Effective batch = batch_size × num_gpus → scale LR up and divide step counts by
-  num_gpus.
+A 2–8× A100 pod scales near-linearly. Set in the training config:
+trainer:
+  devices: -1          # use all GPUs
+  strategy: ddp
+Effective batch = batch_size × num_gpus → scale LR up and divide step counts by
+num_gpus.
 
-  ---
-  Bottom line for fastest single-GPU run: get an 80 GB A100/H100, set
-  gradient_checkpointing: false, batch_size: 256, accum: 1, bf16-mixed,
-  max_steps/num_training_steps 100000, lr: 2e-5, num_workers: 16, plus TF32 + SDPA. That
-  finishes 3.5 B tokens in ~88K steps instead of ~354K.
+---
+Bottom line for fastest single-GPU run: get an 80 GB A100/H100, set
+gradient_checkpointing: false, batch_size: 256, accum: 1, bf16-mixed,
+max_steps/num_training_steps 100000, lr: 2e-5, num_workers: 16, plus TF32 + SDPA. That
+finishes 3.5 B tokens in ~88K steps instead of ~354K.
 
-  Which GPU will you rent? Tell me and I'll apply the exact edits to adapt_150m.yaml +
-  esm2_150m.yaml (+ the experiment's batch_size), and add the TF32/SDPA lines to the
-  training script if you want them.
+Which GPU will you rent? Tell me and I'll apply the exact edits to adapt_150m.yaml +
+esm2_150m.yaml (+ the experiment's batch_size), and add the TF32/SDPA lines to the
+training script if you want them.
 
 
+===========================
+===========================
+
+===========================
 ===========================
