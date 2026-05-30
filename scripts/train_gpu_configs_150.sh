@@ -49,7 +49,7 @@ NW=$(nproc)
 # ── 150M · 24 GB (RTX 3090 / 4090 / A5000) ─────────────  ACTIVE BY DEFAULT ──────
 python scripts/adapt_esm2.py +experiment=adapt_esm2_150m \
     model.gradient_checkpointing=false \
-    data.batch_size=128 \
+    data.batch_size=90 \
     data.num_workers=${NW} \
     training.trainer.precision=${PREC} \
     training.trainer.accumulate_grad_batches=1 \
